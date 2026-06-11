@@ -199,23 +199,23 @@ return result;
 if (delta = 0) { return True; }
 
 originalPitch = note.Pitch;
-absoluteDelta = delta;
-if (absoluteDelta < 0) { absoluteDelta = 0 - absoluteDelta; }
-octaves = RoundDown(absoluteDelta / 12);
 upward = delta > 0;
-sourceName = PitchClassName(Mod12(originalPitch));
-destinationName = PitchClassName(Mod12(originalPitch + delta));
-degree = Sibelius.CalculateDegree(sourceName, destinationName, upward);
-intervalType = Sibelius.CalculateInterval(sourceName, destinationName, upward);
-if (upward)
+step = 1;
+if (upward = False) { step = -1; }
+remaining = delta;
+if (remaining < 0) { remaining = 0 - remaining; }
+
+for count = 1 to remaining
 {
-	degree = degree + (octaves * 7);
+	stepSourcePitch = note.Pitch;
+	sourceName = PitchClassName(Mod12(stepSourcePitch));
+	destinationName = PitchClassName(Mod12(stepSourcePitch + step));
+	degree = Sibelius.CalculateDegree(sourceName, destinationName, upward);
+	intervalType = Sibelius.CalculateInterval(sourceName, destinationName, upward);
+	if (upward = False) { degree = 0 - degree; }
+	note.Transpose(degree, intervalType, False);
+	if (not(note.Pitch = stepSourcePitch + step)) { return False; }
 }
-else
-{
-	degree = 0 - degree - (octaves * 7);
-}
-note.Transpose(degree, intervalType, False);
 return note.Pitch = originalPitch + delta;
 }"
 	IntervalDialog "IntervalDialog"
