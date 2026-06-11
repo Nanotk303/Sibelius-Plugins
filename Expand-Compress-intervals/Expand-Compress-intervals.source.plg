@@ -40,27 +40,19 @@ if (ShowAndValidateDialog() = False)
 ratioParts = ParseRatio(ratioText);
 ratioNumerator = ratioParts[0];
 ratioDenominator = ratioParts[1];
-captureResult = CaptureScaledSelection(selection, ratioNumerator, ratioDenominator);
-if (captureResult = False)
+score.Redraw = False;
+changed = TransformSelection(selection, ratioNumerator, ratioDenominator);
+score.Redraw = True;
+if (changed = -2)
 {
 	Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
 	return False;
 }
-
-score.Redraw = False;
-changed = 0;
-for groupIndex = 0 to capturedGroupCount - 1
+if (changed < 0)
 {
-	result = RebuildNoteRest(groupIndex);
-	if (result < 0)
-	{
-		score.Redraw = True;
-		Sibelius.MessageBox('Expand-Compress-intervals: impossible de reconstruire une note a sa hauteur cible.');
-		return False;
-	}
-	changed = changed + result;
+	Sibelius.MessageBox('Expand-Compress-intervals: impossible de reconstruire une note a sa hauteur cible.');
+	return False;
 }
-score.Redraw = True;
 
 Sibelius.MessageBox('Expand-Compress-intervals: ' & changed & ' note(s) transformee(s), ratio ' & ratioText & '.');
 return True;
@@ -167,25 +159,25 @@ scaled = absoluteDistance * numerator;
 rounded = RoundDown((scaled + RoundDown(denominator / 2)) / denominator);
 return sign * rounded;
 }"
-	CaptureScaledSelection "(selection, numerator, denominator) {
-capturedNoteRests = CreateSparseArray();
-capturedStarts = CreateSparseArray();
-capturedCounts = CreateSparseArray();
-capturedOriginalPitches = CreateSparseArray();
-capturedTargetPitches = CreateSparseArray();
-capturedTied = CreateSparseArray();
-capturedStringNumbers = CreateSparseArray();
-capturedBracketed = CreateSparseArray();
-capturedHidden = CreateSparseArray();
-capturedNoteStyles = CreateSparseArray();
-capturedOriginalDeltas = CreateSparseArray();
-capturedOriginalDurations = CreateSparseArray();
-capturedOriginalVelocities = CreateSparseArray();
-capturedUseDeltas = CreateSparseArray();
-capturedUseDurations = CreateSparseArray();
-capturedUseVelocities = CreateSparseArray();
-capturedGroupCount = 0;
-capturedNoteCount = 0;
+	TransformSelection "(selection, numerator, denominator) {
+noteRests = CreateSparseArray();
+starts = CreateSparseArray();
+counts = CreateSparseArray();
+originalPitches = CreateSparseArray();
+targetPitches = CreateSparseArray();
+tiedValues = CreateSparseArray();
+stringNumbers = CreateSparseArray();
+bracketedValues = CreateSparseArray();
+hiddenValues = CreateSparseArray();
+noteStyles = CreateSparseArray();
+originalDeltas = CreateSparseArray();
+originalDurations = CreateSparseArray();
+originalVelocities = CreateSparseArray();
+useDeltas = CreateSparseArray();
+useDurations = CreateSparseArray();
+useVelocities = CreateSparseArray();
+groupCount = 0;
+flatNoteCount = 0;
 first = True;
 previousOriginal = 0;
 previousTarget = 0;
@@ -194,8 +186,8 @@ for each NoteRest nr in selection
 {
 	if (nr.NoteCount > 0)
 	{
-		capturedNoteRests[capturedGroupCount] = nr;
-		capturedStarts[capturedGroupCount] = capturedNoteCount;
+		noteRests[groupCount] = nr;
+		starts[groupCount] = flatNoteCount;
 		groupNoteCount = 0;
 		for each note in nr
 		{
@@ -212,81 +204,75 @@ for each NoteRest nr in selection
 			}
 			if ((targetPitch < 0) or (targetPitch > 127))
 			{
-				return False;
+				return -2;
 			}
 
-			capturedOriginalPitches[capturedNoteCount] = originalPitch;
-			capturedTargetPitches[capturedNoteCount] = targetPitch;
-			capturedTied[capturedNoteCount] = note.Tied;
-			capturedStringNumbers[capturedNoteCount] = note.StringNum;
-			capturedBracketed[capturedNoteCount] = note.Bracketed;
-			capturedHidden[capturedNoteCount] = note.Hidden;
-			capturedNoteStyles[capturedNoteCount] = note.NoteStyle;
-			capturedOriginalDeltas[capturedNoteCount] = note.OriginalDeltaSr;
-			capturedOriginalDurations[capturedNoteCount] = note.OriginalDuration;
-			capturedOriginalVelocities[capturedNoteCount] = note.OriginalVelocity;
-			capturedUseDeltas[capturedNoteCount] = note.UseOriginalDeltaSrForPlayback;
-			capturedUseDurations[capturedNoteCount] = note.UseOriginalDurationForPlayback;
-			capturedUseVelocities[capturedNoteCount] = note.UseOriginalVelocityForPlayback;
-			capturedNoteCount = capturedNoteCount + 1;
+			originalPitches[flatNoteCount] = originalPitch;
+			targetPitches[flatNoteCount] = targetPitch;
+			tiedValues[flatNoteCount] = note.Tied;
+			stringNumbers[flatNoteCount] = note.StringNum;
+			bracketedValues[flatNoteCount] = note.Bracketed;
+			hiddenValues[flatNoteCount] = note.Hidden;
+			noteStyles[flatNoteCount] = note.NoteStyle;
+			originalDeltas[flatNoteCount] = note.OriginalDeltaSr;
+			originalDurations[flatNoteCount] = note.OriginalDuration;
+			originalVelocities[flatNoteCount] = note.OriginalVelocity;
+			useDeltas[flatNoteCount] = note.UseOriginalDeltaSrForPlayback;
+			useDurations[flatNoteCount] = note.UseOriginalDurationForPlayback;
+			useVelocities[flatNoteCount] = note.UseOriginalVelocityForPlayback;
+			flatNoteCount = flatNoteCount + 1;
 			groupNoteCount = groupNoteCount + 1;
 			previousOriginal = originalPitch;
 			previousTarget = targetPitch;
 		}
-		capturedCounts[capturedGroupCount] = groupNoteCount;
-		capturedGroupCount = capturedGroupCount + 1;
+		counts[groupCount] = groupNoteCount;
+		groupCount = groupCount + 1;
 	}
 }
-return True;
-}"
-	RebuildNoteRest "(groupIndex) {
-nr = capturedNoteRests[groupIndex];
-firstIndex = capturedStarts[groupIndex];
-lastIndex = firstIndex + capturedCounts[groupIndex] - 1;
+
 changed = 0;
-for index = firstIndex to lastIndex
+for groupIndex = 0 to groupCount - 1
 {
-	if (not(capturedTargetPitches[index] = capturedOriginalPitches[index]))
+	nr = noteRests[groupIndex];
+	firstIndex = starts[groupIndex];
+	lastIndex = firstIndex + counts[groupIndex] - 1;
+	groupChanged = 0;
+	for index = firstIndex to lastIndex
 	{
-		changed = changed + 1;
+		if (not(targetPitches[index] = originalPitches[index]))
+		{
+			groupChanged = groupChanged + 1;
+		}
 	}
-}
-if (changed = 0)
-{
-	return 0;
-}
-
-while (nr.NoteCount > 0)
-{
-	nr.RemoveNote(nr.Highest);
-}
-
-for index = firstIndex to lastIndex
-{
-	if (capturedStringNumbers[index] >= 0)
+	if (groupChanged > 0)
 	{
-		newNote = nr.AddNote(capturedTargetPitches[index], capturedTied[index], 0, capturedStringNumbers[index]);
-	}
-	else
-	{
-		newNote = nr.AddNote(capturedTargetPitches[index], capturedTied[index], 0);
-	}
-	if (newNote = null)
-	{
-		return -1;
-	}
-	newNote.Bracketed = capturedBracketed[index];
-	newNote.Hidden = capturedHidden[index];
-	newNote.NoteStyle = capturedNoteStyles[index];
-	newNote.OriginalDeltaSr = capturedOriginalDeltas[index];
-	newNote.OriginalDuration = capturedOriginalDurations[index];
-	newNote.OriginalVelocity = capturedOriginalVelocities[index];
-	newNote.UseOriginalDeltaSrForPlayback = capturedUseDeltas[index];
-	newNote.UseOriginalDurationForPlayback = capturedUseDurations[index];
-	newNote.UseOriginalVelocityForPlayback = capturedUseVelocities[index];
-	if (not(newNote.Pitch = capturedTargetPitches[index]))
-	{
-		return -1;
+		while (nr.NoteCount > 0)
+		{
+			nr.RemoveNote(nr.Highest);
+		}
+		for index = firstIndex to lastIndex
+		{
+			if (stringNumbers[index] >= 0)
+			{
+				newNote = nr.AddNote(targetPitches[index], tiedValues[index], 0, stringNumbers[index]);
+			}
+			else
+			{
+				newNote = nr.AddNote(targetPitches[index], tiedValues[index], 0);
+			}
+			if (newNote = null) { return -1; }
+			newNote.Bracketed = bracketedValues[index];
+			newNote.Hidden = hiddenValues[index];
+			newNote.NoteStyle = noteStyles[index];
+			newNote.OriginalDeltaSr = originalDeltas[index];
+			newNote.OriginalDuration = originalDurations[index];
+			newNote.OriginalVelocity = originalVelocities[index];
+			newNote.UseOriginalDeltaSrForPlayback = useDeltas[index];
+			newNote.UseOriginalDurationForPlayback = useDurations[index];
+			newNote.UseOriginalVelocityForPlayback = useVelocities[index];
+			if (not(newNote.Pitch = targetPitches[index])) { return -1; }
+		}
+		changed = changed + groupChanged;
 	}
 }
 return changed;
@@ -311,22 +297,4 @@ return changed;
 	}
 	ratioText "2"
 	reopen "false"
-	capturedNoteRests "null"
-	capturedStarts "null"
-	capturedCounts "null"
-	capturedOriginalPitches "null"
-	capturedTargetPitches "null"
-	capturedTied "null"
-	capturedStringNumbers "null"
-	capturedBracketed "null"
-	capturedHidden "null"
-	capturedNoteStyles "null"
-	capturedOriginalDeltas "null"
-	capturedOriginalDurations "null"
-	capturedOriginalVelocities "null"
-	capturedUseDeltas "null"
-	capturedUseDurations "null"
-	capturedUseVelocities "null"
-	capturedGroupCount "0"
-	capturedNoteCount "0"
 }
