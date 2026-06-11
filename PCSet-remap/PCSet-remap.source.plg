@@ -11,6 +11,8 @@ if (Sibelius.ScoreCount = 0)
 
 score = Sibelius.ActiveScore;
 selection = score.Selection;
+BuildTranspositionList();
+UpdateTranspositionPreview();
 hasNotes = False;
 for each NoteRest nr in selection
 {
@@ -71,7 +73,7 @@ while (result >= 12)
 }
 return result;
 }"
-	PitchClassSelected "(pitchClass) {
+	BasePitchClassSelected "(pitchClass) {
 if (pitchClass = 0) { return pcC; }
 if (pitchClass = 1) { return pcCs; }
 if (pitchClass = 2) { return pcD; }
@@ -85,16 +87,62 @@ if (pitchClass = 9) { return pcA; }
 if (pitchClass = 10) { return pcBb; }
 return pcB;
 }"
+	PitchClassSelected "(pitchClass) {
+sourcePitchClass = Mod12(pitchClass - TranspositionSemitones());
+return BasePitchClassSelected(sourcePitchClass);
+}"
 	CountSelectedPitchClasses "() {
 count = 0;
 for pc = 0 to 11
 {
-	if (PitchClassSelected(pc))
+	if (BasePitchClassSelected(pc))
 	{
 		count = count + 1;
 	}
 }
 return count;
+}"
+	BuildTranspositionList "() {
+transpositionList = CreateArray();
+index = 0;
+for transposition = -12 to 12
+{
+	transpositionList[index] = 'T' & transposition;
+	index = index + 1;
+}
+}"
+	TranspositionSemitones "() {
+for index = 0 to 24
+{
+	if (transpositionList[index] = transpositionLabel)
+	{
+		return index - 12;
+	}
+}
+return 0;
+}"
+	UpdateTranspositionPreview "() {
+transposition = TranspositionSemitones();
+preview = '(';
+separator = '';
+for pc = 0 to 11
+{
+	if (BasePitchClassSelected(pc))
+	{
+		transposedPc = Mod12(pc + transposition);
+		if (displayAsNumbers)
+		{
+			item = '' & transposedPc;
+		}
+		else
+		{
+			item = PitchClassName(transposedPc);
+		}
+		preview = preview & separator & item;
+		separator = ' ';
+	}
+}
+transposedSetText = 'Set transpose: ' & preview & ')';
 }"
 	NearestDelta "(sourcePc) {
 if (PitchClassSelected(sourcePc))
@@ -159,6 +207,7 @@ reopenDialog = True;
 while (reopenDialog)
 {
 	reopenDialog = False;
+	UpdateTranspositionPreview();
 	if (displayAsNumbers)
 	{
 		result = Sibelius.ShowDialog(PCSetDialogNumbers, Self);
@@ -177,13 +226,22 @@ return result;
 }"
 	SwitchToNumbers "() {
 displayAsNumbers = True;
+displayNames = False;
+displayNumbers = True;
+UpdateTranspositionPreview();
 reopenDialog = True;
 Sibelius.CloseDialog(PCSetDialogNames, Self, False);
 }"
 	SwitchToNames "() {
 displayAsNumbers = False;
+displayNames = True;
+displayNumbers = False;
+UpdateTranspositionPreview();
 reopenDialog = True;
 Sibelius.CloseDialog(PCSetDialogNumbers, Self, False);
+}"
+	PitchClassChanged "() {
+UpdateTranspositionPreview();
 }"
 	PCSetDialogNames "PCSetDialogNames"
 	{
@@ -191,31 +249,34 @@ Sibelius.CloseDialog(PCSetDialogNumbers, Self, False);
 		X "310"
 		Y "180"
 		Width "330"
-		Height "225"
+		Height "265"
 		Controls
 		{
 			Text { Title "Classes de hauteurs cibles" ID "IDC_TITLE" X "12" Y "10" Width "200" Height "14" RightAlign "0" Value Method SetFocus "0" }
-			CheckBox { Title "C" ID "IDC_C" X "16" Y "34" Width "42" Height "14" Value "pcC" Method SetFocus "0" }
-			CheckBox { Title "C#" ID "IDC_CS" X "68" Y "34" Width "42" Height "14" Value "pcCs" Method SetFocus "0" }
-			CheckBox { Title "D" ID "IDC_D" X "120" Y "34" Width "42" Height "14" Value "pcD" Method SetFocus "0" }
-			CheckBox { Title "Eb" ID "IDC_EB" X "172" Y "34" Width "42" Height "14" Value "pcEb" Method SetFocus "0" }
-			CheckBox { Title "E" ID "IDC_E" X "224" Y "34" Width "42" Height "14" Value "pcE" Method SetFocus "0" }
-			CheckBox { Title "F" ID "IDC_F" X "276" Y "34" Width "42" Height "14" Value "pcF" Method SetFocus "0" }
-			CheckBox { Title "F#" ID "IDC_FS" X "16" Y "58" Width "42" Height "14" Value "pcFs" Method SetFocus "0" }
-			CheckBox { Title "G" ID "IDC_G" X "68" Y "58" Width "42" Height "14" Value "pcG" Method SetFocus "0" }
-			CheckBox { Title "Ab" ID "IDC_AB" X "120" Y "58" Width "42" Height "14" Value "pcAb" Method SetFocus "0" }
-			CheckBox { Title "A" ID "IDC_A" X "172" Y "58" Width "42" Height "14" Value "pcA" Method SetFocus "0" }
-			CheckBox { Title "Bb" ID "IDC_BB" X "224" Y "58" Width "42" Height "14" Value "pcBb" Method SetFocus "0" }
-			CheckBox { Title "B" ID "IDC_B" X "276" Y "58" Width "42" Height "14" Value "pcB" Method SetFocus "0" }
+			CheckBox { Title "C" ID "IDC_C" X "16" Y "34" Width "42" Height "14" Value "pcC" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "C#" ID "IDC_CS" X "68" Y "34" Width "42" Height "14" Value "pcCs" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "D" ID "IDC_D" X "120" Y "34" Width "42" Height "14" Value "pcD" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "Eb" ID "IDC_EB" X "172" Y "34" Width "42" Height "14" Value "pcEb" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "E" ID "IDC_E" X "224" Y "34" Width "42" Height "14" Value "pcE" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "F" ID "IDC_F" X "276" Y "34" Width "42" Height "14" Value "pcF" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "F#" ID "IDC_FS" X "16" Y "58" Width "42" Height "14" Value "pcFs" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "G" ID "IDC_G" X "68" Y "58" Width "42" Height "14" Value "pcG" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "Ab" ID "IDC_AB" X "120" Y "58" Width "42" Height "14" Value "pcAb" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "A" ID "IDC_A" X "172" Y "58" Width "42" Height "14" Value "pcA" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "Bb" ID "IDC_BB" X "224" Y "58" Width "42" Height "14" Value "pcBb" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "B" ID "IDC_B" X "276" Y "58" Width "42" Height "14" Value "pcB" Method "PitchClassChanged" SetFocus "0" }
 			Text { Title "Affichage:" ID "IDC_DISPLAY_LABEL" X "12" Y "88" Width "58" Height "14" RightAlign "0" Value Method SetFocus "0" }
 			RadioButton { Title "Noms de notes" ID "IDC_DISPLAY_NAMES" X "72" Y "87" Width "92" Height "14" StartGroup "1" Value "displayNames" Method SetFocus "0" }
 			RadioButton { Title "Entiers 0-11" ID "IDC_DISPLAY_NUMBERS" X "170" Y "87" Width "92" Height "14" StartGroup "0" Value "displayNumbers" Method "SwitchToNumbers" SetFocus "0" }
-			Text { Title "En cas d'egalite:" ID "IDC_TIE_LABEL" X "12" Y "116" Width "92" Height "14" RightAlign "0" Value Method SetFocus "0" }
-			RadioButton { Title "preferer la note inferieure" ID "IDC_DOWN" X "108" Y "115" Width "135" Height "14" StartGroup "1" Value "preferDown" Method SetFocus "0" }
-			RadioButton { Title "preferer la note superieure" ID "IDC_UP" X "108" Y "134" Width "140" Height "14" StartGroup "0" Value "preferUp" Method SetFocus "0" }
-			Text { Title "Chaque note est deplacee dans le registre le plus proche." ID "IDC_HELP" X "12" Y "163" Width "295" Height "14" RightAlign "0" Value Method SetFocus "0" }
-			Button { Title "Annuler" ID "IDC_CANCEL" X "200" Y "194" Width "56" Height "14" DefaultButton "0" Value Method SetFocus "0" EndDialog "0" }
-			Button { Title "Remapper" ID "IDC_OK" X "262" Y "194" Width "56" Height "14" DefaultButton "1" Value Method SetFocus "0" EndDialog "1" }
+			Text { Title "Transposition:" ID "IDC_TRANSPOSITION_LABEL" X "12" Y "116" Width "72" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			ComboBox { Title ID "IDC_TRANSPOSITION" X "88" Y "115" Width "64" Height "13" ListVar "transpositionList" AllowMultipleSelections "0" Value "transpositionLabel" Method "UpdateTranspositionPreview" SetFocus "0" }
+			Text { Title ID "IDC_TRANSPOSED_SET" X "160" Y "116" Width "158" Height "14" RightAlign "0" Value "transposedSetText" Method SetFocus "0" }
+			Text { Title "En cas d'egalite:" ID "IDC_TIE_LABEL" X "12" Y "146" Width "92" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			RadioButton { Title "preferer la note inferieure" ID "IDC_DOWN" X "108" Y "145" Width "135" Height "14" StartGroup "1" Value "preferDown" Method SetFocus "0" }
+			RadioButton { Title "preferer la note superieure" ID "IDC_UP" X "108" Y "164" Width "140" Height "14" StartGroup "0" Value "preferUp" Method SetFocus "0" }
+			Text { Title "Chaque note est deplacee vers le set transpose le plus proche." ID "IDC_HELP" X "12" Y "193" Width "306" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			Button { Title "Annuler" ID "IDC_CANCEL" X "200" Y "234" Width "56" Height "14" DefaultButton "0" Value Method SetFocus "0" EndDialog "0" }
+			Button { Title "Remapper" ID "IDC_OK" X "262" Y "234" Width "56" Height "14" DefaultButton "1" Value Method SetFocus "0" EndDialog "1" }
 		}
 	}
 	PCSetDialogNumbers "PCSetDialogNumbers"
@@ -224,31 +285,34 @@ Sibelius.CloseDialog(PCSetDialogNumbers, Self, False);
 		X "310"
 		Y "180"
 		Width "330"
-		Height "225"
+		Height "265"
 		Controls
 		{
 			Text { Title "Classes de hauteurs cibles" ID "IDC_TITLE" X "12" Y "10" Width "200" Height "14" RightAlign "0" Value Method SetFocus "0" }
-			CheckBox { Title "0" ID "IDC_0" X "16" Y "34" Width "42" Height "14" Value "pcC" Method SetFocus "0" }
-			CheckBox { Title "1" ID "IDC_1" X "68" Y "34" Width "42" Height "14" Value "pcCs" Method SetFocus "0" }
-			CheckBox { Title "2" ID "IDC_2" X "120" Y "34" Width "42" Height "14" Value "pcD" Method SetFocus "0" }
-			CheckBox { Title "3" ID "IDC_3" X "172" Y "34" Width "42" Height "14" Value "pcEb" Method SetFocus "0" }
-			CheckBox { Title "4" ID "IDC_4" X "224" Y "34" Width "42" Height "14" Value "pcE" Method SetFocus "0" }
-			CheckBox { Title "5" ID "IDC_5" X "276" Y "34" Width "42" Height "14" Value "pcF" Method SetFocus "0" }
-			CheckBox { Title "6" ID "IDC_6" X "16" Y "58" Width "42" Height "14" Value "pcFs" Method SetFocus "0" }
-			CheckBox { Title "7" ID "IDC_7" X "68" Y "58" Width "42" Height "14" Value "pcG" Method SetFocus "0" }
-			CheckBox { Title "8" ID "IDC_8" X "120" Y "58" Width "42" Height "14" Value "pcAb" Method SetFocus "0" }
-			CheckBox { Title "9" ID "IDC_9" X "172" Y "58" Width "42" Height "14" Value "pcA" Method SetFocus "0" }
-			CheckBox { Title "10" ID "IDC_10" X "224" Y "58" Width "42" Height "14" Value "pcBb" Method SetFocus "0" }
-			CheckBox { Title "11" ID "IDC_11" X "276" Y "58" Width "42" Height "14" Value "pcB" Method SetFocus "0" }
+			CheckBox { Title "0" ID "IDC_0" X "16" Y "34" Width "42" Height "14" Value "pcC" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "1" ID "IDC_1" X "68" Y "34" Width "42" Height "14" Value "pcCs" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "2" ID "IDC_2" X "120" Y "34" Width "42" Height "14" Value "pcD" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "3" ID "IDC_3" X "172" Y "34" Width "42" Height "14" Value "pcEb" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "4" ID "IDC_4" X "224" Y "34" Width "42" Height "14" Value "pcE" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "5" ID "IDC_5" X "276" Y "34" Width "42" Height "14" Value "pcF" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "6" ID "IDC_6" X "16" Y "58" Width "42" Height "14" Value "pcFs" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "7" ID "IDC_7" X "68" Y "58" Width "42" Height "14" Value "pcG" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "8" ID "IDC_8" X "120" Y "58" Width "42" Height "14" Value "pcAb" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "9" ID "IDC_9" X "172" Y "58" Width "42" Height "14" Value "pcA" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "10" ID "IDC_10" X "224" Y "58" Width "42" Height "14" Value "pcBb" Method "PitchClassChanged" SetFocus "0" }
+			CheckBox { Title "11" ID "IDC_11" X "276" Y "58" Width "42" Height "14" Value "pcB" Method "PitchClassChanged" SetFocus "0" }
 			Text { Title "Affichage:" ID "IDC_DISPLAY_LABEL" X "12" Y "88" Width "58" Height "14" RightAlign "0" Value Method SetFocus "0" }
 			RadioButton { Title "Noms de notes" ID "IDC_DISPLAY_NAMES" X "72" Y "87" Width "92" Height "14" StartGroup "1" Value "displayNames" Method "SwitchToNames" SetFocus "0" }
 			RadioButton { Title "Entiers 0-11" ID "IDC_DISPLAY_NUMBERS" X "170" Y "87" Width "92" Height "14" StartGroup "0" Value "displayNumbers" Method SetFocus "0" }
-			Text { Title "En cas d'egalite:" ID "IDC_TIE_LABEL" X "12" Y "116" Width "92" Height "14" RightAlign "0" Value Method SetFocus "0" }
-			RadioButton { Title "preferer la note inferieure" ID "IDC_DOWN" X "108" Y "115" Width "135" Height "14" StartGroup "1" Value "preferDown" Method SetFocus "0" }
-			RadioButton { Title "preferer la note superieure" ID "IDC_UP" X "108" Y "134" Width "140" Height "14" StartGroup "0" Value "preferUp" Method SetFocus "0" }
-			Text { Title "Chaque note est deplacee dans le registre le plus proche." ID "IDC_HELP" X "12" Y "163" Width "295" Height "14" RightAlign "0" Value Method SetFocus "0" }
-			Button { Title "Annuler" ID "IDC_CANCEL" X "200" Y "194" Width "56" Height "14" DefaultButton "0" Value Method SetFocus "0" EndDialog "0" }
-			Button { Title "Remapper" ID "IDC_OK" X "262" Y "194" Width "56" Height "14" DefaultButton "1" Value Method SetFocus "0" EndDialog "1" }
+			Text { Title "Transposition:" ID "IDC_TRANSPOSITION_LABEL" X "12" Y "116" Width "72" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			ComboBox { Title ID "IDC_TRANSPOSITION" X "88" Y "115" Width "64" Height "13" ListVar "transpositionList" AllowMultipleSelections "0" Value "transpositionLabel" Method "UpdateTranspositionPreview" SetFocus "0" }
+			Text { Title ID "IDC_TRANSPOSED_SET" X "160" Y "116" Width "158" Height "14" RightAlign "0" Value "transposedSetText" Method SetFocus "0" }
+			Text { Title "En cas d'egalite:" ID "IDC_TIE_LABEL" X "12" Y "146" Width "92" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			RadioButton { Title "preferer la note inferieure" ID "IDC_DOWN" X "108" Y "145" Width "135" Height "14" StartGroup "1" Value "preferDown" Method SetFocus "0" }
+			RadioButton { Title "preferer la note superieure" ID "IDC_UP" X "108" Y "164" Width "140" Height "14" StartGroup "0" Value "preferUp" Method SetFocus "0" }
+			Text { Title "Chaque note est deplacee vers le set transpose le plus proche." ID "IDC_HELP" X "12" Y "193" Width "306" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			Button { Title "Annuler" ID "IDC_CANCEL" X "200" Y "234" Width "56" Height "14" DefaultButton "0" Value Method SetFocus "0" EndDialog "0" }
+			Button { Title "Remapper" ID "IDC_OK" X "262" Y "234" Width "56" Height "14" DefaultButton "1" Value Method SetFocus "0" EndDialog "1" }
 		}
 	}
 	pcC "true"
@@ -269,4 +333,7 @@ Sibelius.CloseDialog(PCSetDialogNumbers, Self, False);
 	displayNames "true"
 	displayNumbers "false"
 	reopenDialog "false"
+	transpositionList ""
+	transpositionLabel "T0"
+	transposedSetText ""
 }
