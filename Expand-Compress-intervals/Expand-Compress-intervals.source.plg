@@ -159,8 +159,11 @@ scaled = absoluteDistance * numerator;
 rounded = RoundDown((scaled + RoundDown(denominator / 2)) / denominator);
 return sign * rounded;
 }"
+	TrueFalseAsNumber "(flag) {
+if (flag) { return 1; }
+return 0;
+}"
 	TransformSelection "(selection, numerator, denominator) {
-noteRests = CreateSparseArray();
 starts = CreateSparseArray();
 counts = CreateSparseArray();
 originalPitches = CreateSparseArray();
@@ -186,7 +189,8 @@ for each NoteRest nr in selection
 {
 	if (nr.NoteCount > 0)
 	{
-		noteRests[groupCount] = nr;
+		noteRestName = 'scaledNoteRest' & groupCount;
+		@noteRestName = nr;
 		starts[groupCount] = flatNoteCount;
 		groupNoteCount = 0;
 		for each note in nr
@@ -209,17 +213,17 @@ for each NoteRest nr in selection
 
 			originalPitches[flatNoteCount] = originalPitch;
 			targetPitches[flatNoteCount] = targetPitch;
-			tiedValues[flatNoteCount] = note.Tied;
+			tiedValues[flatNoteCount] = TrueFalseAsNumber(note.Tied);
 			stringNumbers[flatNoteCount] = note.StringNum;
-			bracketedValues[flatNoteCount] = note.Bracketed;
-			hiddenValues[flatNoteCount] = note.Hidden;
+			bracketedValues[flatNoteCount] = TrueFalseAsNumber(note.Bracketed);
+			hiddenValues[flatNoteCount] = TrueFalseAsNumber(note.Hidden);
 			noteStyles[flatNoteCount] = note.NoteStyle;
 			originalDeltas[flatNoteCount] = note.OriginalDeltaSr;
 			originalDurations[flatNoteCount] = note.OriginalDuration;
 			originalVelocities[flatNoteCount] = note.OriginalVelocity;
-			useDeltas[flatNoteCount] = note.UseOriginalDeltaSrForPlayback;
-			useDurations[flatNoteCount] = note.UseOriginalDurationForPlayback;
-			useVelocities[flatNoteCount] = note.UseOriginalVelocityForPlayback;
+			useDeltas[flatNoteCount] = TrueFalseAsNumber(note.UseOriginalDeltaSrForPlayback);
+			useDurations[flatNoteCount] = TrueFalseAsNumber(note.UseOriginalDurationForPlayback);
+			useVelocities[flatNoteCount] = TrueFalseAsNumber(note.UseOriginalVelocityForPlayback);
 			flatNoteCount = flatNoteCount + 1;
 			groupNoteCount = groupNoteCount + 1;
 			previousOriginal = originalPitch;
@@ -233,7 +237,8 @@ for each NoteRest nr in selection
 changed = 0;
 for groupIndex = 0 to groupCount - 1
 {
-	nr = noteRests[groupIndex];
+	noteRestName = 'scaledNoteRest' & groupIndex;
+	nr = @noteRestName;
 	firstIndex = starts[groupIndex];
 	lastIndex = firstIndex + counts[groupIndex] - 1;
 	groupChanged = 0;
@@ -248,7 +253,8 @@ for groupIndex = 0 to groupCount - 1
 	{
 		while (nr.NoteCount > 0)
 		{
-			nr.RemoveNote(nr.Highest);
+			noteToRemove = nr.Highest;
+			nr.RemoveNote(noteToRemove);
 		}
 		for index = firstIndex to lastIndex
 		{
