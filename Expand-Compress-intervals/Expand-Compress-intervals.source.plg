@@ -49,13 +49,13 @@ if (captureResult = False)
 
 score.Redraw = False;
 changed = 0;
-for groupIndex = 0 to capturedNoteRests.Length - 1
+for groupIndex = 0 to capturedGroupCount - 1
 {
 	result = RebuildNoteRest(groupIndex);
 	if (result < 0)
 	{
 		score.Redraw = True;
-		Sibelius.MessageBox('Expand-Compress-intervals: Sibelius n\'a pas pu reconstruire une note a sa hauteur cible.');
+		Sibelius.MessageBox('Expand-Compress-intervals: impossible de reconstruire une note a sa hauteur cible.');
 		return False;
 	}
 	changed = changed + result;
