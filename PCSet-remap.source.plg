@@ -1,0 +1,201 @@
+{
+	Initialize "() {
+AddToPluginsMenu('PCSet-remap', 'Run');
+}"
+	Run "() {
+if (Sibelius.ScoreCount = 0)
+{
+	Sibelius.MessageBox('PCSet-remap: ouvrez une partition avant de lancer le plug-in.');
+	return False;
+}
+
+score = Sibelius.ActiveScore;
+selection = score.Selection;
+hasNotes = False;
+for each NoteRest nr in selection
+{
+	if (nr.NoteCount > 0)
+	{
+		hasNotes = True;
+	}
+}
+
+if (hasNotes = False)
+{
+	Sibelius.MessageBox('PCSet-remap: selectionnez au moins une note ou un passage contenant des notes.');
+	return False;
+}
+
+if (Sibelius.ShowDialog(PCSetDialog, Self) = False)
+{
+	return False;
+}
+
+if (CountSelectedPitchClasses() = 0)
+{
+	Sibelius.MessageBox('PCSet-remap: selectionnez au moins une classe de hauteur.');
+	return False;
+}
+
+score.Redraw = False;
+changed = 0;
+for each NoteRest nr in selection
+{
+	if (nr.NoteCount > 0)
+	{
+		for each note in nr
+		{
+			delta = NearestDelta(Mod12(note.Pitch));
+			if (not(delta = 0))
+			{
+				TransposeNoteBySemitones(note, delta);
+				changed = changed + 1;
+			}
+		}
+	}
+}
+score.Redraw = True;
+
+Sibelius.MessageBox('PCSet-remap: ' & changed & ' note(s) remappee(s).');
+return True;
+}"
+	Mod12 "(value) {
+result = value;
+while (result < 0)
+{
+	result = result + 12;
+}
+while (result >= 12)
+{
+	result = result - 12;
+}
+return result;
+}"
+	PitchClassSelected "(pitchClass) {
+if (pitchClass = 0) { return pcC; }
+if (pitchClass = 1) { return pcCs; }
+if (pitchClass = 2) { return pcD; }
+if (pitchClass = 3) { return pcEb; }
+if (pitchClass = 4) { return pcE; }
+if (pitchClass = 5) { return pcF; }
+if (pitchClass = 6) { return pcFs; }
+if (pitchClass = 7) { return pcG; }
+if (pitchClass = 8) { return pcAb; }
+if (pitchClass = 9) { return pcA; }
+if (pitchClass = 10) { return pcBb; }
+return pcB;
+}"
+	CountSelectedPitchClasses "() {
+count = 0;
+for pc = 0 to 11
+{
+	if (PitchClassSelected(pc))
+	{
+		count = count + 1;
+	}
+}
+return count;
+}"
+	NearestDelta "(sourcePc) {
+if (PitchClassSelected(sourcePc))
+{
+	return 0;
+}
+
+for distance = 1 to 6
+{
+	downPc = Mod12(sourcePc - distance);
+	upPc = Mod12(sourcePc + distance);
+	downSelected = PitchClassSelected(downPc);
+	upSelected = PitchClassSelected(upPc);
+
+	if (downSelected and upSelected)
+	{
+		if (preferDown)
+		{
+			return 0 - distance;
+		}
+		return distance;
+	}
+	if (downSelected)
+	{
+		return 0 - distance;
+	}
+	if (upSelected)
+	{
+		return distance;
+	}
+}
+return 0;
+}"
+	PitchClassName "(pitchClass) {
+if (pitchClass = 0) { return 'C'; }
+if (pitchClass = 1) { return 'C#'; }
+if (pitchClass = 2) { return 'D'; }
+if (pitchClass = 3) { return 'Eb'; }
+if (pitchClass = 4) { return 'E'; }
+if (pitchClass = 5) { return 'F'; }
+if (pitchClass = 6) { return 'F#'; }
+if (pitchClass = 7) { return 'G'; }
+if (pitchClass = 8) { return 'Ab'; }
+if (pitchClass = 9) { return 'A'; }
+if (pitchClass = 10) { return 'Bb'; }
+return 'B';
+}"
+	TransposeNoteBySemitones "(note, delta) {
+sourceName = PitchClassName(Mod12(note.Pitch));
+destinationName = PitchClassName(Mod12(note.Pitch + delta));
+upward = delta > 0;
+degree = Sibelius.CalculateDegree(sourceName, destinationName, upward);
+intervalType = Sibelius.CalculateInterval(sourceName, destinationName, upward);
+if (upward = False)
+{
+	degree = 0 - degree;
+}
+note.Transpose(degree, intervalType, False);
+}"
+	PCSetDialog "PCSetDialog"
+	{
+		Title "PCSet-remap"
+		X "310"
+		Y "180"
+		Width "330"
+		Height "205"
+		Controls
+		{
+			Text { Title "Classes de hauteurs cibles" ID "IDC_TITLE" X "12" Y "10" Width "200" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			CheckBox { Title "C" ID "IDC_C" X "16" Y "34" Width "42" Height "14" Value "pcC" Method SetFocus "0" }
+			CheckBox { Title "C#" ID "IDC_CS" X "68" Y "34" Width "42" Height "14" Value "pcCs" Method SetFocus "0" }
+			CheckBox { Title "D" ID "IDC_D" X "120" Y "34" Width "42" Height "14" Value "pcD" Method SetFocus "0" }
+			CheckBox { Title "Eb" ID "IDC_EB" X "172" Y "34" Width "42" Height "14" Value "pcEb" Method SetFocus "0" }
+			CheckBox { Title "E" ID "IDC_E" X "224" Y "34" Width "42" Height "14" Value "pcE" Method SetFocus "0" }
+			CheckBox { Title "F" ID "IDC_F" X "276" Y "34" Width "42" Height "14" Value "pcF" Method SetFocus "0" }
+			CheckBox { Title "F#" ID "IDC_FS" X "16" Y "58" Width "42" Height "14" Value "pcFs" Method SetFocus "0" }
+			CheckBox { Title "G" ID "IDC_G" X "68" Y "58" Width "42" Height "14" Value "pcG" Method SetFocus "0" }
+			CheckBox { Title "Ab" ID "IDC_AB" X "120" Y "58" Width "42" Height "14" Value "pcAb" Method SetFocus "0" }
+			CheckBox { Title "A" ID "IDC_A" X "172" Y "58" Width "42" Height "14" Value "pcA" Method SetFocus "0" }
+			CheckBox { Title "Bb" ID "IDC_BB" X "224" Y "58" Width "42" Height "14" Value "pcBb" Method SetFocus "0" }
+			CheckBox { Title "B" ID "IDC_B" X "276" Y "58" Width "42" Height "14" Value "pcB" Method SetFocus "0" }
+			Text { Title "En cas d'egalite:" ID "IDC_TIE_LABEL" X "12" Y "93" Width "92" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			RadioButton { Title "preferer la note inferieure" ID "IDC_DOWN" X "108" Y "92" Width "135" Height "14" StartGroup "1" Value "preferDown" Method SetFocus "0" }
+			RadioButton { Title "preferer la note superieure" ID "IDC_UP" X "108" Y "111" Width "140" Height "14" StartGroup "0" Value "preferUp" Method SetFocus "0" }
+			Text { Title "Chaque note est deplacee dans le registre le plus proche." ID "IDC_HELP" X "12" Y "140" Width "295" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			Button { Title "Annuler" ID "IDC_CANCEL" X "200" Y "174" Width "56" Height "14" DefaultButton "0" Value Method SetFocus "0" EndDialog "0" }
+			Button { Title "Remapper" ID "IDC_OK" X "262" Y "174" Width "56" Height "14" DefaultButton "1" Value Method SetFocus "0" EndDialog "1" }
+		}
+	}
+	pcC "true"
+	pcCs "false"
+	pcD "true"
+	pcEb "false"
+	pcE "true"
+	pcF "false"
+	pcFs "false"
+	pcG "true"
+	pcAb "false"
+	pcA "true"
+	pcBb "false"
+	pcB "true"
+	preferDown "true"
+	preferUp "false"
+}
