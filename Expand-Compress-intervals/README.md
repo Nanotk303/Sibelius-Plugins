@@ -18,6 +18,7 @@ nouvelle hauteur = pivot + arrondi((hauteur originale - pivot) * ratio)
 Les valeurs fractionnaires sont arrondies au demi-ton le plus proche. Une egalite exacte est arrondie en s'eloignant du pivot, symetriquement dans les deux directions.
 Le ratio est calcule comme une fraction decimale exacte afin d'eviter les arrondis intermediaires de ManuScript.
 Les notes sont recreees a leur hauteur MIDI cible exacte, ce qui evite les choix diatoniques imprevisibles de `Note.Transpose`.
+Les accords sont traites comme des blocs complets afin que les references de notes ManuScript restent valides pendant la transformation.
 
 ## Utilisation
 
