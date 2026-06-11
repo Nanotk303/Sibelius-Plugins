@@ -190,8 +190,8 @@ for each NoteRest nr in selection
 			}
 			else
 			{
-				interval = originalPitch - previousOriginal;
-				targetPitch = previousTarget + ScaleDistance(interval, numerator, denominator);
+				pitchDistance = originalPitch - previousOriginal;
+				targetPitch = previousTarget + ScaleDistance(pitchDistance, numerator, denominator);
 			}
 			if ((targetPitch < 0) or (targetPitch > 127))
 			{
@@ -205,9 +205,7 @@ for each NoteRest nr in selection
 			data._property:stringNumber = note.StringNum;
 			data._property:bracketed = note.Bracketed;
 			data._property:hidden = note.Hidden;
-			data._property:lvTie = note.LvTie;
 			data._property:noteStyle = note.NoteStyle;
-			data._property:color = note.Color;
 			data._property:originalDelta = note.OriginalDeltaSr;
 			data._property:originalDuration = note.OriginalDuration;
 			data._property:originalVelocity = note.OriginalVelocity;
@@ -266,9 +264,7 @@ for index = 0 to group.notes.Length - 1
 	}
 	newNote.Bracketed = data.bracketed;
 	newNote.Hidden = data.hidden;
-	newNote.LvTie = data.lvTie;
 	newNote.NoteStyle = data.noteStyle;
-	newNote.Color = data.color;
 	newNote.OriginalDeltaSr = data.originalDelta;
 	newNote.OriginalDuration = data.originalDuration;
 	newNote.OriginalVelocity = data.originalVelocity;
