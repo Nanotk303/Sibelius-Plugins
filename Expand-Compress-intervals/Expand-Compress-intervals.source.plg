@@ -16,22 +16,12 @@ if (utils.PluginExists('Repitch') = False)
 
 score = Sibelius.ActiveScore;
 selection = score.Selection;
-originalPitches = CreateArray();
-targetPitches = CreateArray();
-eventCount = 0;
-
+noteCount = 0;
 for each NoteRest nr in selection
 {
-	if (nr.NoteCount > 0)
-	{
-		eventName = 'intervalEvent' & eventCount;
-		@eventName = nr;
-		originalPitches[eventCount] = nr.Lowest.Pitch;
-		eventCount = eventCount + 1;
-	}
+	noteCount = noteCount + nr.NoteCount;
 }
-
-if (eventCount = 0)
+if (noteCount = 0)
 {
 	Sibelius.MessageBox('Expand-Compress-intervals: selectionnez au moins une note ou un passage contenant des notes.');
 	return False;
@@ -45,36 +35,19 @@ if (ShowAndValidateDialog() = False)
 ratioParts = ParseRatio(ratioText);
 ratioNumerator = ratioParts[0];
 ratioDenominator = ratioParts[1];
-targetPitches[0] = originalPitches[0];
-for index = 1 to eventCount - 1
-{
-	pitchDistance = originalPitches[index] - originalPitches[index - 1];
-	targetPitches[index] = targetPitches[index - 1] + ScaleDistance(pitchDistance, ratioNumerator, ratioDenominator);
-	if ((targetPitches[index] < 0) or (targetPitches[index] > 127))
-	{
-		Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
-		return False;
-	}
-}
-
 score.Redraw = False;
-changed = 0;
-for index = 1 to eventCount - 1
-{
-	eventName = 'intervalEvent' & index;
-	nr = @eventName;
-	if (not(targetPitches[index] = originalPitches[index]))
-	{
-		if (TransposeNoteRestToPitch(nr, targetPitches[index]) = False)
-		{
-			score.Redraw = True;
-			Sibelius.MessageBox('Expand-Compress-intervals: impossible d atteindre la hauteur MIDI ' & targetPitches[index] & '.');
-			return False;
-		}
-		changed = changed + nr.NoteCount;
-	}
-}
+changed = TransformByStaffAndVoice(selection, ratioNumerator, ratioDenominator);
 score.Redraw = True;
+if (changed = -2)
+{
+	Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
+	return False;
+}
+if (changed < 0)
+{
+	Sibelius.MessageBox('Expand-Compress-intervals: impossible d atteindre une hauteur cible.');
+	return False;
+}
 
 Sibelius.MessageBox('Expand-Compress-intervals: ' & changed & ' note(s) transformee(s), ratio ' & ratioText & '.');
 return True;
@@ -180,6 +153,52 @@ if (absoluteDistance < 0)
 scaled = absoluteDistance * numerator;
 rounded = RoundDown((scaled + RoundDown(denominator / 2)) / denominator);
 return sign * rounded;
+}"
+	TransformByStaffAndVoice "(selection, numerator, denominator) {
+changed = 0;
+for voice = 1 to 5
+{
+	for each Staff staff in selection
+	{
+		if (staff.IsSystemStaff = False)
+		{
+			eventCount = 0;
+			originalPitches = CreateArray();
+			targetPitches = CreateArray();
+			for each NoteRest nr in selection
+			{
+				if ((nr.ParentBar.ParentStaff.StaffNum = staff.StaffNum) and (nr.VoiceNumber = voice) and (nr.NoteCount > 0))
+				{
+					eventName = 'intervalEvent' & voice & '_' & staff.StaffNum & '_' & eventCount;
+					@eventName = nr;
+					originalPitches[eventCount] = nr.Lowest.Pitch;
+					eventCount = eventCount + 1;
+				}
+			}
+			if (eventCount > 0)
+			{
+				targetPitches[0] = originalPitches[0];
+				for index = 1 to eventCount - 1
+				{
+					pitchDistance = originalPitches[index] - originalPitches[index - 1];
+					targetPitches[index] = targetPitches[index - 1] + ScaleDistance(pitchDistance, numerator, denominator);
+					if ((targetPitches[index] < 0) or (targetPitches[index] > 127)) { return -2; }
+				}
+				for index = 1 to eventCount - 1
+				{
+					eventName = 'intervalEvent' & voice & '_' & staff.StaffNum & '_' & index;
+					nr = @eventName;
+					if (not(targetPitches[index] = originalPitches[index]))
+					{
+						if (TransposeNoteRestToPitch(nr, targetPitches[index]) = False) { return -1; }
+						changed = changed + nr.NoteCount;
+					}
+				}
+			}
+		}
+	}
+}
+return changed;
 }"
 	PitchClassName "(pitchClass) {
 if (pitchClass = 0) { return 'C'; }
