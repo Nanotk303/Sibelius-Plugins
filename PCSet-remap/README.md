@@ -7,10 +7,11 @@ Plug-in ManuScript pour Sibelius qui remappe les notes d'une selection vers les 
 1. Selectionner des notes ou un passage dans Sibelius.
 2. Lancer **PCSet-remap** depuis le menu des plug-ins.
 3. Cocher une ou plusieurs classes de hauteurs cibles.
-4. Choisir la direction preferee lorsqu'une note est exactement a egale distance de deux classes cibles.
-5. Cliquer sur **Remapper**.
+4. Choisir l'affichage des classes de hauteurs: noms de notes ou entiers de `0` a `11`.
+5. Choisir la direction preferee lorsqu'une note est exactement a egale distance de deux classes cibles.
+6. Cliquer sur **Remapper**.
 
-Les hauteurs sont deplacees dans le registre le plus proche. Dans un accord selectionne, chaque tete de note est traitee individuellement.
+Le changement d'affichage conserve les classes deja cochees. Les hauteurs sont deplacees dans le registre le plus proche. Dans un accord selectionne, chaque tete de note est traitee individuellement.
 
 ## Installation macOS
 
