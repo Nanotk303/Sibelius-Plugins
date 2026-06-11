@@ -173,7 +173,7 @@ if (absoluteDistance < 0)
 }
 
 scaled = absoluteDistance * numerator;
-rounded = (scaled + RoundDown(denominator / 2)) / denominator;
+rounded = RoundDown((scaled + RoundDown(denominator / 2)) / denominator);
 return sign * rounded;
 }"
 	PitchClassName "(pitchClass) {

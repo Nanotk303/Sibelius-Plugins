@@ -33,6 +33,8 @@ assert.deepEqual(transform([60, 62, 64, 67], 0.5), [60, 61, 62, 64]);
 assert.deepEqual(transform([60, 65, 70], "0.4"), [60, 62, 64]);
 assert.deepEqual(transform([70, 65, 60], "0.4"), [70, 68, 66]);
 assert.deepEqual(transform([60, 65, 70], "0,4"), [60, 62, 64]);
+assert.deepEqual(transform([60, 65, 70], "0.7"), [60, 64, 68]);
+assert.deepEqual(transform([70, 65, 60], "0.7"), [70, 66, 62]);
 assert.deepEqual(transform([60, 62, 64, 67], 1), [60, 62, 64, 67]);
 assert.deepEqual(transform([60, 62, 64, 67], 0), [60, 60, 60, 60]);
 assert.deepEqual(transform([67, 60, 64], 2), [67, 53, 61]);
