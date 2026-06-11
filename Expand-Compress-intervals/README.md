@@ -15,7 +15,8 @@ nouvelle hauteur = pivot + arrondi((hauteur originale - pivot) * ratio)
 - `1` conserve les hauteurs.
 - `0` rassemble toutes les notes sur la hauteur pivot.
 
-Les valeurs fractionnaires sont arrondies au demi-ton le plus proche.
+Les valeurs fractionnaires sont arrondies au demi-ton le plus proche. Une egalite exacte est arrondie en s'eloignant du pivot, symetriquement dans les deux directions.
+Le ratio est calcule comme une fraction decimale exacte afin d'eviter les arrondis intermediaires de ManuScript.
 
 ## Utilisation
 

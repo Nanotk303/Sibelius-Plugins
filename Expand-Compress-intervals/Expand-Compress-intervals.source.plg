@@ -37,13 +37,17 @@ if (ShowAndValidateDialog() = False)
 	return False;
 }
 
-ratio = 0 + NormalizeRatio(ratioText);
+ratioParts = ParseRatio(ratioText);
+ratioNumerator = ratioParts[0];
+ratioDenominator = ratioParts[1];
 pivotPitch = GetPivotPitch(notes, noteCount);
 targetPitches = CreateSparseArray();
 
 for index = 0 to noteCount - 1
 {
-	targetPitch = Round(pivotPitch + ((notes[index].Pitch - pivotPitch) * ratio));
+	distance = notes[index].Pitch - pivotPitch;
+	scaledDistance = ScaleDistance(distance, ratioNumerator, ratioDenominator);
+	targetPitch = pivotPitch + scaledDistance;
 	if ((targetPitch < 0) or (targetPitch > 127))
 	{
 		Sibelius.MessageBox('Expand-Compress-intervals: le ratio place au moins une note hors de la tessiture MIDI 0-127. Choisissez un ratio plus petit.');
@@ -78,23 +82,18 @@ while (reopen)
 		return False;
 	}
 
-	normalizedRatio = NormalizeRatio(ratioText);
-	if ((normalizedRatio = '') or (utils.IsNumeric(normalizedRatio, False) = False))
+	ratioParts = ParseRatio(ratioText);
+	if (ratioParts = null)
 	{
 		Sibelius.MessageBox('Le ratio doit etre un nombre, par exemple 2, 1.5 ou 0.5.');
 		reopen = True;
 	}
 	else
 	{
-		ratio = 0 + normalizedRatio;
-		if (ratio < 0)
+		if (ratioParts[0] < 0)
 		{
 			Sibelius.MessageBox('Le ratio doit etre positif ou nul.');
 			reopen = True;
-		}
-		else
-		{
-			ratioText = normalizedRatio;
 		}
 	}
 }
@@ -102,6 +101,78 @@ return True;
 }"
 	NormalizeRatio "(text) {
 return utils.Replace(text, ',', '.', True);
+}"
+	ParseRatio "(text) {
+normalized = NormalizeRatio(text);
+if (normalized = '')
+{
+	return null;
+}
+
+parts = SplitString(normalized, '.', False);
+if ((parts.NumChildren < 1) or (parts.NumChildren > 2))
+{
+	return null;
+}
+
+wholeText = '' & parts[0];
+if (wholeText = '')
+{
+	wholeText = '0';
+}
+if (utils.IsNumeric(wholeText, True) = False)
+{
+	return null;
+}
+
+whole = 0 + wholeText;
+if (whole < 0)
+{
+	return null;
+}
+
+denominator = 1;
+fraction = 0;
+if (parts.NumChildren = 2)
+{
+	fractionText = '' & parts[1];
+	if (fractionText = '')
+	{
+		fractionText = '0';
+	}
+	if (utils.IsNumeric(fractionText, True) = False)
+	{
+		return null;
+	}
+	for digit = 1 to Length(fractionText)
+	{
+		denominator = denominator * 10;
+	}
+	fraction = 0 + fractionText;
+}
+
+result = CreateSparseArray();
+result[0] = (whole * denominator) + fraction;
+result[1] = denominator;
+return result;
+}"
+	ScaleDistance "(distance, numerator, denominator) {
+if (distance = 0)
+{
+	return 0;
+}
+
+sign = 1;
+absoluteDistance = distance;
+if (absoluteDistance < 0)
+{
+	sign = -1;
+	absoluteDistance = 0 - absoluteDistance;
+}
+
+scaled = absoluteDistance * numerator;
+rounded = (scaled + RoundDown(denominator / 2)) / denominator;
+return sign * rounded;
 }"
 	GetPivotPitch "(notes, noteCount) {
 pivot = notes[0].Pitch;
