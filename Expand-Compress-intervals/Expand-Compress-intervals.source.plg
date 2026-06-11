@@ -40,8 +40,8 @@ if (ShowAndValidateDialog() = False)
 ratioParts = ParseRatio(ratioText);
 ratioNumerator = ratioParts[0];
 ratioDenominator = ratioParts[1];
-groups = CaptureSelection(selection);
-if (BuildScaledIntervalRow(groups, ratioNumerator, ratioDenominator) = False)
+groups = CaptureScaledSelection(selection, ratioNumerator, ratioDenominator);
+if (groups = null)
 {
 	Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
 	return False;
@@ -173,22 +173,39 @@ scaled = absoluteDistance * numerator;
 rounded = (scaled + RoundDown(denominator / 2)) / denominator;
 return sign * rounded;
 }"
-	CaptureSelection "(selection) {
+	CaptureScaledSelection "(selection, numerator, denominator) {
 groups = CreateSparseArray();
 groupIndex = 0;
+first = True;
+previousOriginal = 0;
+previousTarget = 0;
 for each NoteRest nr in selection
 {
 	if (nr.NoteCount > 0)
 	{
-		group = CreateDictionary();
-		group._property:noteRest = nr;
-		group._property:notes = CreateSparseArray();
+		noteData = CreateSparseArray();
 		noteIndex = 0;
 		for each note in nr
 		{
+			originalPitch = note.Pitch;
+			if (first)
+			{
+				targetPitch = originalPitch;
+				first = False;
+			}
+			else
+			{
+				interval = originalPitch - previousOriginal;
+				targetPitch = previousTarget + ScaleDistance(interval, numerator, denominator);
+			}
+			if ((targetPitch < 0) or (targetPitch > 127))
+			{
+				return null;
+			}
+
 			data = CreateDictionary();
-			data._property:originalPitch = note.Pitch;
-			data._property:targetPitch = note.Pitch;
+			data._property:originalPitch = originalPitch;
+			data._property:targetPitch = targetPitch;
 			data._property:tied = note.Tied;
 			data._property:stringNumber = note.StringNum;
 			data._property:bracketed = note.Bracketed;
@@ -200,44 +217,19 @@ for each NoteRest nr in selection
 			data._property:useDelta = note.UseOriginalDeltaSrForPlayback;
 			data._property:useDuration = note.UseOriginalDurationForPlayback;
 			data._property:useVelocity = note.UseOriginalVelocityForPlayback;
-			group.notes[noteIndex] = data;
+			noteData[noteIndex] = data;
 			noteIndex = noteIndex + 1;
+			previousOriginal = originalPitch;
+			previousTarget = targetPitch;
 		}
+		group = CreateDictionary();
+		group._property:noteRest = nr;
+		group._property:notes = noteData;
 		groups[groupIndex] = group;
 		groupIndex = groupIndex + 1;
 	}
 }
 return groups;
-}"
-	BuildScaledIntervalRow "(groups, numerator, denominator) {
-first = True;
-previousOriginal = 0;
-previousTarget = 0;
-for groupIndex = 0 to groups.Length - 1
-{
-	group = groups[groupIndex];
-	for noteIndex = 0 to group.notes.Length - 1
-	{
-		data = group.notes[noteIndex];
-		if (first)
-		{
-			data.targetPitch = data.originalPitch;
-			first = False;
-		}
-		else
-		{
-			interval = data.originalPitch - previousOriginal;
-			data.targetPitch = previousTarget + ScaleDistance(interval, numerator, denominator);
-		}
-		if ((data.targetPitch < 0) or (data.targetPitch > 127))
-		{
-			return False;
-		}
-		previousOriginal = data.originalPitch;
-		previousTarget = data.targetPitch;
-	}
-}
-return True;
 }"
 	RebuildNoteRest "(group) {
 nr = group.noteRest;
