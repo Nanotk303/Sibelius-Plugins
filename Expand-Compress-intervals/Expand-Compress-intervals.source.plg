@@ -41,20 +41,20 @@ ratioParts = ParseRatio(ratioText);
 ratioNumerator = ratioParts[0];
 ratioDenominator = ratioParts[1];
 score.Redraw = False;
-changed = TransformSelection(selection, ratioNumerator, ratioDenominator);
+transformResult = TransformSelection(selection, ratioNumerator, ratioDenominator);
 score.Redraw = True;
-if (changed = -2)
+if (transformResult = -2)
 {
 	Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
 	return False;
 }
-if (changed < 0)
+if (transformResult < 0)
 {
 	Sibelius.MessageBox('Expand-Compress-intervals: impossible de reconstruire une note a sa hauteur cible.');
 	return False;
 }
 
-Sibelius.MessageBox('Expand-Compress-intervals: ' & changed & ' note(s) transformee(s), ratio ' & ratioText & '.');
+Sibelius.MessageBox('Expand-Compress-intervals diagnostic: ratio ' & ratioNumerator & '/' & ratioDenominator & ', groupes ' & diagnosticGroups & ', notes ' & diagnosticNotes & ', cibles modifiees ' & diagnosticTargets & ', groupes reconstruits ' & diagnosticRebuilt & ', notes transformees ' & transformResult & '.');
 return True;
 }"
 	ShowAndValidateDialog "() {
@@ -164,6 +164,10 @@ if (flag) { return 1; }
 return 0;
 }"
 	TransformSelection "(selection, numerator, denominator) {
+diagnosticGroups = 0;
+diagnosticNotes = 0;
+diagnosticTargets = 0;
+diagnosticRebuilt = 0;
 starts = CreateSparseArray();
 counts = CreateSparseArray();
 originalPitches = CreateSparseArray();
@@ -233,6 +237,8 @@ for each NoteRest nr in selection
 		groupCount = groupCount + 1;
 	}
 }
+diagnosticGroups = groupCount;
+diagnosticNotes = flatNoteCount;
 
 changed = 0;
 for groupIndex = 0 to groupCount - 1
@@ -247,6 +253,7 @@ for groupIndex = 0 to groupCount - 1
 		if (not(targetPitches[index] = originalPitches[index]))
 		{
 			groupChanged = groupChanged + 1;
+			diagnosticTargets = diagnosticTargets + 1;
 		}
 	}
 	if (groupChanged > 0)
@@ -279,6 +286,7 @@ for groupIndex = 0 to groupCount - 1
 			if (not(newNote.Pitch = targetPitches[index])) { return -1; }
 		}
 		changed = changed + groupChanged;
+		diagnosticRebuilt = diagnosticRebuilt + 1;
 	}
 }
 return changed;
@@ -303,4 +311,8 @@ return changed;
 	}
 	ratioText "2"
 	reopen "false"
+	diagnosticGroups "0"
+	diagnosticNotes "0"
+	diagnosticTargets "0"
+	diagnosticRebuilt "0"
 }
