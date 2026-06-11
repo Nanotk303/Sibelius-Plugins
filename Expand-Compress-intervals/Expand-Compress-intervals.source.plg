@@ -200,21 +200,34 @@ if (delta = 0) { return True; }
 
 originalPitch = note.Pitch;
 upward = delta > 0;
-step = 1;
-if (upward = False) { step = -1; }
+semitoneDirection = 1;
+if (upward = False)
+{
+	semitoneDirection = -1;
+}
 remaining = delta;
-if (remaining < 0) { remaining = 0 - remaining; }
+if (remaining < 0)
+{
+	remaining = 0 - remaining;
+}
 
-for count = 1 to remaining
+while (remaining > 0)
 {
 	stepSourcePitch = note.Pitch;
 	sourceName = PitchClassName(Mod12(stepSourcePitch));
-	destinationName = PitchClassName(Mod12(stepSourcePitch + step));
+	destinationName = PitchClassName(Mod12(stepSourcePitch + semitoneDirection));
 	degree = Sibelius.CalculateDegree(sourceName, destinationName, upward);
 	intervalType = Sibelius.CalculateInterval(sourceName, destinationName, upward);
-	if (upward = False) { degree = 0 - degree; }
+	if (upward = False)
+	{
+		degree = 0 - degree;
+	}
 	note.Transpose(degree, intervalType, False);
-	if (not(note.Pitch = stepSourcePitch + step)) { return False; }
+	if (not(note.Pitch = stepSourcePitch + semitoneDirection))
+	{
+		return False;
+	}
+	remaining = remaining - 1;
 }
 return note.Pitch = originalPitch + delta;
 }"
