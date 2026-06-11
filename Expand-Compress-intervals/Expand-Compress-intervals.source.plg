@@ -218,10 +218,6 @@ while (remaining > 0)
 	destinationName = PitchClassName(Mod12(stepSourcePitch + semitoneDirection));
 	degree = Sibelius.CalculateDegree(sourceName, destinationName, upward);
 	intervalType = Sibelius.CalculateInterval(sourceName, destinationName, upward);
-	if (upward = False)
-	{
-		degree = 0 - degree;
-	}
 	note.Transpose(degree, intervalType, False);
 	if (not(note.Pitch = stepSourcePitch + semitoneDirection))
 	{

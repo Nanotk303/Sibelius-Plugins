@@ -18,9 +18,9 @@ nouvelle hauteur = nouvelle hauteur precedente + intervalle transforme
 - `0` rassemble toutes les notes sur la premiere hauteur.
 
 La premiere note selectionnee sert de hauteur de depart et reste fixe. Les valeurs fractionnaires sont arrondies au demi-ton le plus proche.
+Par consequent, des ratios proches de `1` peuvent laisser de petits intervalles inchanges: par exemple, `2 x 0.9 = 1.8`, arrondi a `2` demi-tons.
 Le ratio est calcule comme une fraction decimale exacte afin d'eviter les arrondis intermediaires de ManuScript.
-Les notes sont recreees a leur hauteur MIDI cible exacte, ce qui evite les choix diatoniques imprevisibles de `Note.Transpose`.
-Les accords sont traites comme des blocs complets afin que les references de notes ManuScript restent valides pendant la transformation.
+Les notes sont transposees chromatiquement jusqu'a leur hauteur MIDI cible exacte.
 
 ## Utilisation
 
