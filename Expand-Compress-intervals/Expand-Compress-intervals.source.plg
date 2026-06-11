@@ -40,40 +40,31 @@ if (ShowAndValidateDialog() = False)
 ratioParts = ParseRatio(ratioText);
 ratioNumerator = ratioParts[0];
 ratioDenominator = ratioParts[1];
-pivotPitch = GetPivotPitch(notes, noteCount);
-
-for index = 0 to noteCount - 1
+groups = CaptureSelection(selection);
+if (BuildScaledIntervalRow(groups, ratioNumerator, ratioDenominator) = False)
 {
-	distance = notes[index].Pitch - pivotPitch;
-	targetPitch = pivotPitch + ScaleDistance(distance, ratioNumerator, ratioDenominator);
-	if ((targetPitch < 0) or (targetPitch > 127))
-	{
-		Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
-		return False;
-	}
+	Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
+	return False;
 }
 
 score.Redraw = False;
 changed = 0;
-for each NoteRest nr in selection
+for groupIndex = 0 to groups.Length - 1
 {
-	if (nr.NoteCount > 0)
+	result = RebuildNoteRest(groups[groupIndex]);
+	if (result = -2)
 	{
-		result = TransformNoteRest(nr, pivotPitch, ratioNumerator, ratioDenominator);
-		if (result = -2)
-		{
-			score.Redraw = True;
-			Sibelius.MessageBox('Expand-Compress-intervals: Sibelius n\'a pas pu creer une note a la hauteur cible.');
-			return False;
-		}
-		if (result < 0)
-		{
-			score.Redraw = True;
-			Sibelius.MessageBox('Expand-Compress-intervals: une erreur inattendue est survenue pendant la transformation.');
-			return False;
-		}
-		changed = changed + result;
+		score.Redraw = True;
+		Sibelius.MessageBox('Expand-Compress-intervals: Sibelius n\'a pas pu creer une note a la hauteur cible.');
+		return False;
 	}
+	if (result < 0)
+	{
+		score.Redraw = True;
+		Sibelius.MessageBox('Expand-Compress-intervals: une erreur inattendue est survenue pendant la transformation.');
+		return False;
+	}
+	changed = changed + result;
 }
 score.Redraw = True;
 
@@ -182,79 +173,94 @@ scaled = absoluteDistance * numerator;
 rounded = (scaled + RoundDown(denominator / 2)) / denominator;
 return sign * rounded;
 }"
-	GetPivotPitch "(notes, noteCount) {
-pivot = notes[0].Pitch;
-if (pivotLowest)
+	CaptureSelection "(selection) {
+groups = CreateSparseArray();
+groupIndex = 0;
+for each NoteRest nr in selection
 {
-	for index = 1 to noteCount - 1
+	if (nr.NoteCount > 0)
 	{
-		if (notes[index].Pitch < pivot)
+		group = CreateDictionary();
+		group._property:noteRest = nr;
+		group._property:notes = CreateSparseArray();
+		noteIndex = 0;
+		for each note in nr
 		{
-			pivot = notes[index].Pitch;
+			data = CreateDictionary();
+			data._property:originalPitch = note.Pitch;
+			data._property:targetPitch = note.Pitch;
+			data._property:tied = note.Tied;
+			data._property:stringNumber = note.StringNum;
+			data._property:bracketed = note.Bracketed;
+			data._property:hidden = note.Hidden;
+			data._property:noteStyle = note.NoteStyle;
+			data._property:originalDelta = note.OriginalDeltaSr;
+			data._property:originalDuration = note.OriginalDuration;
+			data._property:originalVelocity = note.OriginalVelocity;
+			data._property:useDelta = note.UseOriginalDeltaSrForPlayback;
+			data._property:useDuration = note.UseOriginalDurationForPlayback;
+			data._property:useVelocity = note.UseOriginalVelocityForPlayback;
+			group.notes[noteIndex] = data;
+			noteIndex = noteIndex + 1;
 		}
+		groups[groupIndex] = group;
+		groupIndex = groupIndex + 1;
 	}
 }
-if (pivotHighest)
-{
-	for index = 1 to noteCount - 1
-	{
-		if (notes[index].Pitch > pivot)
-		{
-			pivot = notes[index].Pitch;
-		}
-	}
-}
-return pivot;
+return groups;
 }"
-	TransformNoteRest "(nr, pivotPitch, numerator, denominator) {
-noteData = CreateSparseArray();
-index = 0;
-changed = 0;
-
-for each note in nr
+	BuildScaledIntervalRow "(groups, numerator, denominator) {
+first = True;
+previousOriginal = 0;
+previousTarget = 0;
+for groupIndex = 0 to groups.Length - 1
 {
-	distance = note.Pitch - pivotPitch;
-	targetPitch = pivotPitch + ScaleDistance(distance, numerator, denominator);
-	if ((targetPitch < 0) or (targetPitch > 127))
+	group = groups[groupIndex];
+	for noteIndex = 0 to group.notes.Length - 1
 	{
-		return -1;
+		data = group.notes[noteIndex];
+		if (first)
+		{
+			data.targetPitch = data.originalPitch;
+			first = False;
+		}
+		else
+		{
+			interval = data.originalPitch - previousOriginal;
+			data.targetPitch = previousTarget + ScaleDistance(interval, numerator, denominator);
+		}
+		if ((data.targetPitch < 0) or (data.targetPitch > 127))
+		{
+			return False;
+		}
+		previousOriginal = data.originalPitch;
+		previousTarget = data.targetPitch;
 	}
-
-	data = CreateDictionary();
-	data._property:targetPitch = targetPitch;
-	data._property:originalPitch = note.Pitch;
-	data._property:tied = note.Tied;
-	data._property:stringNumber = note.StringNum;
-	data._property:bracketed = note.Bracketed;
-	data._property:hidden = note.Hidden;
-	data._property:noteStyle = note.NoteStyle;
-	data._property:originalDelta = note.OriginalDeltaSr;
-	data._property:originalDuration = note.OriginalDuration;
-	data._property:originalVelocity = note.OriginalVelocity;
-	data._property:useDelta = note.UseOriginalDeltaSrForPlayback;
-	data._property:useDuration = note.UseOriginalDurationForPlayback;
-	data._property:useVelocity = note.UseOriginalVelocityForPlayback;
-	noteData[index] = data;
-	if (not(targetPitch = note.Pitch))
+}
+return True;
+}"
+	RebuildNoteRest "(group) {
+nr = group.noteRest;
+changed = 0;
+for index = 0 to group.notes.Length - 1
+{
+	data = group.notes[index];
+	if (not(data.targetPitch = data.originalPitch))
 	{
 		changed = changed + 1;
 	}
-	index = index + 1;
 }
-
 if (changed = 0)
 {
 	return 0;
 }
-
 while (nr.NoteCount > 0)
 {
 	nr.Highest.Delete();
 }
-
-for index = 0 to noteData.Length - 1
+for index = 0 to group.notes.Length - 1
 {
-	data = noteData[index];
+	data = group.notes[index];
 	if (data.stringNumber >= 0)
 	{
 		newNote = nr.AddNote(data.targetPitch, data.tied, 0, data.stringNumber);
@@ -267,7 +273,6 @@ for index = 0 to noteData.Length - 1
 	{
 		return -2;
 	}
-
 	newNote.Bracketed = data.bracketed;
 	newNote.Hidden = data.hidden;
 	newNote.NoteStyle = data.noteStyle;
@@ -278,7 +283,6 @@ for index = 0 to noteData.Length - 1
 	newNote.UseOriginalDurationForPlayback = data.useDuration;
 	newNote.UseOriginalVelocityForPlayback = data.useVelocity;
 }
-
 return changed;
 }"
 	IntervalDialog "IntervalDialog"
@@ -287,24 +291,18 @@ return changed;
 		X "310"
 		Y "190"
 		Width "340"
-		Height "210"
+		Height "185"
 		Controls
 		{
 			Text { Title "Ratio:" ID "IDC_RATIO_LABEL" X "14" Y "18" Width "48" Height "14" RightAlign "0" Value Method SetFocus "0" }
 			Edit { Title ID "IDC_RATIO" X "68" Y "17" Width "64" Height "14" Value "ratioText" Method SetFocus "1" }
 			Text { Title "2 = expansion x2, 0.5 ou 0,5 = compression, 1 = inchange" ID "IDC_RATIO_HELP" X "142" Y "18" Width "188" Height "28" RightAlign "0" Value Method SetFocus "0" }
-			Text { Title "Note pivot:" ID "IDC_PIVOT_LABEL" X "14" Y "62" Width "68" Height "14" RightAlign "0" Value Method SetFocus "0" }
-			RadioButton { Title "Premiere note selectionnee" ID "IDC_PIVOT_FIRST" X "88" Y "61" Width "154" Height "14" StartGroup "1" Value "pivotFirst" Method SetFocus "0" }
-			RadioButton { Title "Note la plus grave" ID "IDC_PIVOT_LOWEST" X "88" Y "82" Width "120" Height "14" StartGroup "0" Value "pivotLowest" Method SetFocus "0" }
-			RadioButton { Title "Note la plus aigue" ID "IDC_PIVOT_HIGHEST" X "88" Y "103" Width "120" Height "14" StartGroup "0" Value "pivotHighest" Method SetFocus "0" }
-			Text { Title "Les hauteurs fractionnaires sont arrondies au demi-ton le plus proche." ID "IDC_ROUND_HELP" X "14" Y "136" Width "316" Height "14" RightAlign "0" Value Method SetFocus "0" }
-			Button { Title "Annuler" ID "IDC_CANCEL" X "212" Y "176" Width "56" Height "14" DefaultButton "0" Value Method SetFocus "0" EndDialog "0" }
-			Button { Title "Appliquer" ID "IDC_OK" X "274" Y "176" Width "56" Height "14" DefaultButton "1" Value Method SetFocus "0" EndDialog "1" }
+			Text { Title "La premiere note reste fixe. Les intervalles successifs sont mis a l'echelle puis cumules." ID "IDC_MODEL_HELP" X "14" Y "62" Width "316" Height "28" RightAlign "0" Value Method SetFocus "0" }
+			Text { Title "Les valeurs fractionnaires sont arrondies au demi-ton le plus proche." ID "IDC_ROUND_HELP" X "14" Y "104" Width "316" Height "14" RightAlign "0" Value Method SetFocus "0" }
+			Button { Title "Annuler" ID "IDC_CANCEL" X "212" Y "151" Width "56" Height "14" DefaultButton "0" Value Method SetFocus "0" EndDialog "0" }
+			Button { Title "Appliquer" ID "IDC_OK" X "274" Y "151" Width "56" Height "14" DefaultButton "1" Value Method SetFocus "0" EndDialog "1" }
 		}
 	}
 	ratioText "2"
-	pivotFirst "true"
-	pivotLowest "false"
-	pivotHighest "false"
 	reopen "false"
 }
