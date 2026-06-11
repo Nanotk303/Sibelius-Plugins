@@ -40,34 +40,25 @@ if (ShowAndValidateDialog() = False)
 ratioParts = ParseRatio(ratioText);
 ratioNumerator = ratioParts[0];
 ratioDenominator = ratioParts[1];
-targetPitches = CreateSparseArray();
-targetPitches[0] = notes[0].Pitch;
-for index = 1 to noteCount - 1
+groups = CaptureScaledSelection(selection, ratioNumerator, ratioDenominator);
+if (groups = null)
 {
-	interval = notes[index].Pitch - notes[index - 1].Pitch;
-	targetPitches[index] = targetPitches[index - 1] + ScaleDistance(interval, ratioNumerator, ratioDenominator);
-	if ((targetPitches[index] < 0) or (targetPitches[index] > 127))
-	{
-		Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
-		return False;
-	}
+	Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
+	return False;
 }
 
 score.Redraw = False;
 changed = 0;
-for index = 0 to noteCount - 1
+for groupIndex = 0 to groups.Length - 1
 {
-	delta = targetPitches[index] - notes[index].Pitch;
-	if (not(delta = 0))
+	result = RebuildNoteRest(groups[groupIndex]);
+	if (result < 0)
 	{
-		if (TransposeNoteBySemitones(notes[index], delta) = False)
-		{
-			score.Redraw = True;
-			Sibelius.MessageBox('Expand-Compress-intervals: Sibelius n\'a pas atteint la hauteur cible ' & targetPitches[index] & '.');
-			return False;
-		}
-		changed = changed + 1;
+		score.Redraw = True;
+		Sibelius.MessageBox('Expand-Compress-intervals: Sibelius n\'a pas pu reconstruire une note a sa hauteur cible.');
+		return False;
 	}
+	changed = changed + result;
 }
 score.Redraw = True;
 
@@ -176,56 +167,120 @@ scaled = absoluteDistance * numerator;
 rounded = RoundDown((scaled + RoundDown(denominator / 2)) / denominator);
 return sign * rounded;
 }"
-	PitchClassName "(pitchClass) {
-if (pitchClass = 0) { return 'C'; }
-if (pitchClass = 1) { return 'C#'; }
-if (pitchClass = 2) { return 'D'; }
-if (pitchClass = 3) { return 'Eb'; }
-if (pitchClass = 4) { return 'E'; }
-if (pitchClass = 5) { return 'F'; }
-if (pitchClass = 6) { return 'F#'; }
-if (pitchClass = 7) { return 'G'; }
-if (pitchClass = 8) { return 'Ab'; }
-if (pitchClass = 9) { return 'A'; }
-if (pitchClass = 10) { return 'Bb'; }
-return 'B';
-}"
-	Mod12 "(value) {
-result = value - (RoundDown(value / 12) * 12);
-if (result < 0) { result = result + 12; }
-return result;
-}"
-	TransposeNoteBySemitones "(note, delta) {
-if (delta = 0) { return True; }
+	CaptureScaledSelection "(selection, numerator, denominator) {
+groups = CreateSparseArray();
+groupIndex = 0;
+first = True;
+previousOriginal = 0;
+previousTarget = 0;
 
-originalPitch = note.Pitch;
-upward = delta > 0;
-semitoneDirection = 1;
-if (upward = False)
+for each NoteRest nr in selection
 {
-	semitoneDirection = -1;
-}
-remaining = delta;
-if (remaining < 0)
-{
-	remaining = 0 - remaining;
-}
-
-while (remaining > 0)
-{
-	stepSourcePitch = note.Pitch;
-	sourceName = PitchClassName(Mod12(stepSourcePitch));
-	destinationName = PitchClassName(Mod12(stepSourcePitch + semitoneDirection));
-	degree = Sibelius.CalculateDegree(sourceName, destinationName, upward);
-	intervalType = Sibelius.CalculateInterval(sourceName, destinationName, upward);
-	note.Transpose(degree, intervalType, False);
-	if (not(note.Pitch = stepSourcePitch + semitoneDirection))
+	if (nr.NoteCount > 0)
 	{
-		return False;
+		noteData = CreateSparseArray();
+		noteIndex = 0;
+		for each note in nr
+		{
+			originalPitch = note.Pitch;
+			if (first)
+			{
+				targetPitch = originalPitch;
+				first = False;
+			}
+			else
+			{
+				interval = originalPitch - previousOriginal;
+				targetPitch = previousTarget + ScaleDistance(interval, numerator, denominator);
+			}
+			if ((targetPitch < 0) or (targetPitch > 127))
+			{
+				return null;
+			}
+
+			data = CreateDictionary();
+			data._property:originalPitch = originalPitch;
+			data._property:targetPitch = targetPitch;
+			data._property:tied = note.Tied;
+			data._property:stringNumber = note.StringNum;
+			data._property:bracketed = note.Bracketed;
+			data._property:hidden = note.Hidden;
+			data._property:lvTie = note.LvTie;
+			data._property:noteStyle = note.NoteStyle;
+			data._property:color = note.Color;
+			data._property:originalDelta = note.OriginalDeltaSr;
+			data._property:originalDuration = note.OriginalDuration;
+			data._property:originalVelocity = note.OriginalVelocity;
+			data._property:useDelta = note.UseOriginalDeltaSrForPlayback;
+			data._property:useDuration = note.UseOriginalDurationForPlayback;
+			data._property:useVelocity = note.UseOriginalVelocityForPlayback;
+			noteData[noteIndex] = data;
+			noteIndex = noteIndex + 1;
+			previousOriginal = originalPitch;
+			previousTarget = targetPitch;
+		}
+		group = CreateDictionary();
+		group._property:noteRest = nr;
+		group._property:notes = noteData;
+		groups[groupIndex] = group;
+		groupIndex = groupIndex + 1;
 	}
-	remaining = remaining - 1;
 }
-return note.Pitch = originalPitch + delta;
+return groups;
+}"
+	RebuildNoteRest "(group) {
+nr = group.noteRest;
+changed = 0;
+for index = 0 to group.notes.Length - 1
+{
+	data = group.notes[index];
+	if (not(data.targetPitch = data.originalPitch))
+	{
+		changed = changed + 1;
+	}
+}
+if (changed = 0)
+{
+	return 0;
+}
+
+while (nr.NoteCount > 0)
+{
+	nr.RemoveNote(nr.Highest);
+}
+
+for index = 0 to group.notes.Length - 1
+{
+	data = group.notes[index];
+	if (data.stringNumber >= 0)
+	{
+		newNote = nr.AddNote(data.targetPitch, data.tied, 0, data.stringNumber);
+	}
+	else
+	{
+		newNote = nr.AddNote(data.targetPitch, data.tied, 0);
+	}
+	if (newNote = null)
+	{
+		return -1;
+	}
+	newNote.Bracketed = data.bracketed;
+	newNote.Hidden = data.hidden;
+	newNote.LvTie = data.lvTie;
+	newNote.NoteStyle = data.noteStyle;
+	newNote.Color = data.color;
+	newNote.OriginalDeltaSr = data.originalDelta;
+	newNote.OriginalDuration = data.originalDuration;
+	newNote.OriginalVelocity = data.originalVelocity;
+	newNote.UseOriginalDeltaSrForPlayback = data.useDelta;
+	newNote.UseOriginalDurationForPlayback = data.useDuration;
+	newNote.UseOriginalVelocityForPlayback = data.useVelocity;
+	if (not(newNote.Pitch = data.targetPitch))
+	{
+		return -1;
+	}
+}
+return changed;
 }"
 	IntervalDialog "IntervalDialog"
 	{
