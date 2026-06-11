@@ -8,6 +8,11 @@ if (Sibelius.ScoreCount = 0)
 	Sibelius.MessageBox('Expand-Compress-intervals: ouvrez une partition avant de lancer le plug-in.');
 	return False;
 }
+if (utils.PluginExists('Repitch') = False)
+{
+	Sibelius.MessageBox('Expand-Compress-intervals: le plug-in officiel Repitch est introuvable.');
+	return False;
+}
 
 score = Sibelius.ActiveScore;
 selection = score.Selection;
@@ -190,6 +195,18 @@ if (pitchClass = 9) { return 'A'; }
 if (pitchClass = 10) { return 'Bb'; }
 return 'B';
 }"
+	CanonicalDiatonicPitch "(pitch) {
+pitchClass = Mod12(pitch);
+octave = RoundDown(pitch / 12);
+diatonicOffset = 0;
+if (pitchClass = 2) { diatonicOffset = 1; }
+if ((pitchClass = 3) or (pitchClass = 4)) { diatonicOffset = 2; }
+if ((pitchClass = 5) or (pitchClass = 6)) { diatonicOffset = 3; }
+if (pitchClass = 7) { diatonicOffset = 4; }
+if ((pitchClass = 8) or (pitchClass = 9)) { diatonicOffset = 5; }
+if ((pitchClass = 10) or (pitchClass = 11)) { diatonicOffset = 6; }
+return (octave * 7) + diatonicOffset;
+}"
 	Mod12 "(value) {
 result = value - (RoundDown(value / 12) * 12);
 if (result < 0) { result = result + 12; }
@@ -200,27 +217,12 @@ sourceNote = nr.Lowest;
 sourcePitch = sourceNote.Pitch;
 if (sourcePitch = targetPitch) { return True; }
 
-upward = targetPitch > sourcePitch;
-sourceName = sourceNote.Name;
 destinationName = PitchClassName(Mod12(targetPitch));
-degree = Sibelius.CalculateDegree(sourceName, destinationName, upward);
-intervalType = Sibelius.CalculateInterval(sourceName, destinationName, upward);
-pitchDifference = targetPitch - sourcePitch;
-if (pitchDifference < 0) { pitchDifference = 0 - pitchDifference; }
-octaveDegrees = RoundDown(pitchDifference / 12) * 7;
-if (pitchDifference = 12)
-{
-	if (degree = 0) { octaveDegrees = 7; }
-}
-if (upward)
-{
-	degree = degree + octaveDegrees;
-}
-else
-{
-	degree = degree - octaveDegrees;
-}
-nr.Transpose(degree, intervalType, False);
+destinationDiatonicPitch = CanonicalDiatonicPitch(targetPitch);
+degreeAndInterval = CreateArray();
+repitchPlugin = Repitch;
+repitchPlugin.GetDegreeAndInterval(sourceNote.Name, sourcePitch, sourceNote.DiatonicPitch, destinationName, targetPitch, destinationDiatonicPitch, degreeAndInterval);
+nr.Transpose(degreeAndInterval[0], degreeAndInterval[1], False);
 return nr.Lowest.Pitch = targetPitch;
 }"
 	IntervalDialog "IntervalDialog"
