@@ -21,7 +21,7 @@ Les valeurs fractionnaires sont arrondies au demi-ton le plus proche.
 
 1. Selectionner des notes ou un passage dans Sibelius.
 2. Lancer **Expand-Compress-intervals**.
-3. Saisir un ratio positif ou nul avec un point comme separateur decimal.
+3. Saisir un ratio positif ou nul. Les separateurs decimaux `.` et `,` sont acceptes.
 4. Choisir la note pivot: premiere note selectionnee, note la plus grave ou note la plus aigue.
 5. Cliquer sur **Appliquer**.
 

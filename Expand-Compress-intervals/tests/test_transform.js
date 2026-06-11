@@ -8,6 +8,8 @@ function transform(pitches, ratio, pivotMode = "first") {
 }
 
 assert.deepEqual(transform([60, 62, 64, 67], 2), [60, 64, 68, 74]);
+assert.deepEqual(transform([48, 60, 72], 2), [48, 72, 96]);
+assert.deepEqual(transform([72, 60, 48], 2), [72, 48, 24]);
 assert.deepEqual(transform([60, 62, 64, 67], 0.5), [60, 61, 62, 64]);
 assert.deepEqual(transform([60, 62, 64, 67], 1), [60, 62, 64, 67]);
 assert.deepEqual(transform([60, 62, 64, 67], 0), [60, 60, 60, 60]);

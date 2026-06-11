@@ -11,7 +11,7 @@ if (Sibelius.ScoreCount = 0)
 
 score = Sibelius.ActiveScore;
 selection = score.Selection;
-notes = CreateArray();
+notes = CreateSparseArray();
 noteCount = 0;
 
 for each NoteRest nr in selection
@@ -37,9 +37,9 @@ if (ShowAndValidateDialog() = False)
 	return False;
 }
 
-ratio = 0 + ratioText;
+ratio = 0 + NormalizeRatio(ratioText);
 pivotPitch = GetPivotPitch(notes, noteCount);
-targetPitches = CreateArray();
+targetPitches = CreateSparseArray();
 
 for index = 0 to noteCount - 1
 {
@@ -78,22 +78,30 @@ while (reopen)
 		return False;
 	}
 
-	if (utils.IsNumeric(ratioText, False) = False)
+	normalizedRatio = NormalizeRatio(ratioText);
+	if ((normalizedRatio = '') or (utils.IsNumeric(normalizedRatio, False) = False))
 	{
 		Sibelius.MessageBox('Le ratio doit etre un nombre, par exemple 2, 1.5 ou 0.5.');
 		reopen = True;
 	}
 	else
 	{
-		ratio = 0 + ratioText;
+		ratio = 0 + normalizedRatio;
 		if (ratio < 0)
 		{
 			Sibelius.MessageBox('Le ratio doit etre positif ou nul.');
 			reopen = True;
 		}
+		else
+		{
+			ratioText = normalizedRatio;
+		}
 	}
 }
 return True;
+}"
+	NormalizeRatio "(text) {
+return utils.Replace(text, ',', '.', True);
 }"
 	GetPivotPitch "(notes, noteCount) {
 pivot = notes[0].Pitch;
@@ -149,9 +157,18 @@ return 'B';
 sourceName = PitchClassName(Mod12(note.Pitch));
 destinationName = PitchClassName(Mod12(note.Pitch + delta));
 upward = delta > 0;
+
+distance = delta;
+if (distance < 0)
+{
+	distance = 0 - distance;
+}
+octaves = RoundDown(distance / 12);
+
 degree = Sibelius.CalculateDegree(sourceName, destinationName, upward);
 intervalType = Sibelius.CalculateInterval(sourceName, destinationName, upward);
-if (upward = False)
+degree = degree + (octaves * 7);
+if (delta < 0)
 {
 	degree = 0 - degree;
 }
@@ -168,7 +185,7 @@ note.Transpose(degree, intervalType, False);
 		{
 			Text { Title "Ratio:" ID "IDC_RATIO_LABEL" X "14" Y "18" Width "48" Height "14" RightAlign "0" Value Method SetFocus "0" }
 			Edit { Title ID "IDC_RATIO" X "68" Y "17" Width "64" Height "14" Value "ratioText" Method SetFocus "1" }
-			Text { Title "2 = expansion x2, 0.5 = compression de moitie, 1 = inchange" ID "IDC_RATIO_HELP" X "142" Y "18" Width "188" Height "28" RightAlign "0" Value Method SetFocus "0" }
+			Text { Title "2 = expansion x2, 0.5 ou 0,5 = compression, 1 = inchange" ID "IDC_RATIO_HELP" X "142" Y "18" Width "188" Height "28" RightAlign "0" Value Method SetFocus "0" }
 			Text { Title "Note pivot:" ID "IDC_PIVOT_LABEL" X "14" Y "62" Width "68" Height "14" RightAlign "0" Value Method SetFocus "0" }
 			RadioButton { Title "Premiere note selectionnee" ID "IDC_PIVOT_FIRST" X "88" Y "61" Width "154" Height "14" StartGroup "1" Value "pivotFirst" Method SetFocus "0" }
 			RadioButton { Title "Note la plus grave" ID "IDC_PIVOT_LOWEST" X "88" Y "82" Width "120" Height "14" StartGroup "0" Value "pivotLowest" Method SetFocus "0" }
