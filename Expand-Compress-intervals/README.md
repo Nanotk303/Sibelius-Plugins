@@ -20,7 +20,7 @@ nouvelle hauteur = nouvelle hauteur precedente + intervalle transforme
 La premiere note selectionnee sert de hauteur de depart et reste fixe. Les valeurs fractionnaires sont arrondies au demi-ton le plus proche.
 Par consequent, des ratios proches de `1` peuvent laisser de petits intervalles inchanges: par exemple, `2 x 0.9 = 1.8`, arrondi a `2` demi-tons.
 Le ratio est calcule comme une fraction decimale exacte afin d'eviter les arrondis intermediaires de ManuScript.
-Les accords sont reconstruits avec `NoteRest.RemoveNote` et `NoteRest.AddNote`, comme dans les plug-ins officiels Sibelius, afin d'obtenir exactement chaque hauteur MIDI cible.
+Pour les accords, la note la plus grave represente l'evenement dans la suite d'intervalles et l'accord entier est transpose comme un bloc, selon le mecanisme du plug-in officiel `Repitch` de Sibelius.
 
 ## Utilisation
 

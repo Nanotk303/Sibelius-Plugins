@@ -11,22 +11,22 @@ if (Sibelius.ScoreCount = 0)
 
 score = Sibelius.ActiveScore;
 selection = score.Selection;
-notes = CreateSparseArray();
-noteCount = 0;
+originalPitches = CreateArray();
+targetPitches = CreateArray();
+eventCount = 0;
 
 for each NoteRest nr in selection
 {
 	if (nr.NoteCount > 0)
 	{
-		for each note in nr
-		{
-			notes[noteCount] = note;
-			noteCount = noteCount + 1;
-		}
+		eventName = 'intervalEvent' & eventCount;
+		@eventName = nr;
+		originalPitches[eventCount] = nr.Lowest.Pitch;
+		eventCount = eventCount + 1;
 	}
 }
 
-if (noteCount = 0)
+if (eventCount = 0)
 {
 	Sibelius.MessageBox('Expand-Compress-intervals: selectionnez au moins une note ou un passage contenant des notes.');
 	return False;
@@ -40,21 +40,38 @@ if (ShowAndValidateDialog() = False)
 ratioParts = ParseRatio(ratioText);
 ratioNumerator = ratioParts[0];
 ratioDenominator = ratioParts[1];
-score.Redraw = False;
-transformResult = TransformSelection(selection, ratioNumerator, ratioDenominator);
-score.Redraw = True;
-if (transformResult = -2)
+targetPitches[0] = originalPitches[0];
+for index = 1 to eventCount - 1
 {
-	Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
-	return False;
-}
-if (transformResult < 0)
-{
-	Sibelius.MessageBox('Expand-Compress-intervals: impossible de reconstruire une note a sa hauteur cible.');
-	return False;
+	pitchDistance = originalPitches[index] - originalPitches[index - 1];
+	targetPitches[index] = targetPitches[index - 1] + ScaleDistance(pitchDistance, ratioNumerator, ratioDenominator);
+	if ((targetPitches[index] < 0) or (targetPitches[index] > 127))
+	{
+		Sibelius.MessageBox('Expand-Compress-intervals: le ratio place une note hors de la tessiture MIDI 0-127.');
+		return False;
+	}
 }
 
-Sibelius.MessageBox('Expand-Compress-intervals diagnostic: ratio ' & ratioNumerator & '/' & ratioDenominator & ', groupes ' & diagnosticGroups & ', notes ' & diagnosticNotes & ', cibles modifiees ' & diagnosticTargets & ', groupes reconstruits ' & diagnosticRebuilt & ', notes transformees ' & transformResult & '.');
+score.Redraw = False;
+changed = 0;
+for index = 1 to eventCount - 1
+{
+	eventName = 'intervalEvent' & index;
+	nr = @eventName;
+	if (not(targetPitches[index] = originalPitches[index]))
+	{
+		if (TransposeNoteRestToPitch(nr, targetPitches[index]) = False)
+		{
+			score.Redraw = True;
+			Sibelius.MessageBox('Expand-Compress-intervals: impossible d atteindre la hauteur MIDI ' & targetPitches[index] & '.');
+			return False;
+		}
+		changed = changed + nr.NoteCount;
+	}
+}
+score.Redraw = True;
+
+Sibelius.MessageBox('Expand-Compress-intervals: ' & changed & ' note(s) transformee(s), ratio ' & ratioText & '.');
 return True;
 }"
 	ShowAndValidateDialog "() {
@@ -159,137 +176,52 @@ scaled = absoluteDistance * numerator;
 rounded = RoundDown((scaled + RoundDown(denominator / 2)) / denominator);
 return sign * rounded;
 }"
-	TrueFalseAsNumber "(flag) {
-if (flag) { return 1; }
-return 0;
+	PitchClassName "(pitchClass) {
+if (pitchClass = 0) { return 'C'; }
+if (pitchClass = 1) { return 'C#'; }
+if (pitchClass = 2) { return 'D'; }
+if (pitchClass = 3) { return 'Eb'; }
+if (pitchClass = 4) { return 'E'; }
+if (pitchClass = 5) { return 'F'; }
+if (pitchClass = 6) { return 'F#'; }
+if (pitchClass = 7) { return 'G'; }
+if (pitchClass = 8) { return 'Ab'; }
+if (pitchClass = 9) { return 'A'; }
+if (pitchClass = 10) { return 'Bb'; }
+return 'B';
 }"
-	TransformSelection "(selection, numerator, denominator) {
-diagnosticGroups = 0;
-diagnosticNotes = 0;
-diagnosticTargets = 0;
-diagnosticRebuilt = 0;
-starts = CreateSparseArray();
-counts = CreateSparseArray();
-originalPitches = CreateSparseArray();
-targetPitches = CreateSparseArray();
-tiedValues = CreateSparseArray();
-stringNumbers = CreateSparseArray();
-bracketedValues = CreateSparseArray();
-hiddenValues = CreateSparseArray();
-noteStyles = CreateSparseArray();
-originalDeltas = CreateSparseArray();
-originalDurations = CreateSparseArray();
-originalVelocities = CreateSparseArray();
-useDeltas = CreateSparseArray();
-useDurations = CreateSparseArray();
-useVelocities = CreateSparseArray();
-groupCount = 0;
-flatNoteCount = 0;
-first = True;
-previousOriginal = 0;
-previousTarget = 0;
+	Mod12 "(value) {
+result = value - (RoundDown(value / 12) * 12);
+if (result < 0) { result = result + 12; }
+return result;
+}"
+	TransposeNoteRestToPitch "(nr, targetPitch) {
+sourceNote = nr.Lowest;
+sourcePitch = sourceNote.Pitch;
+if (sourcePitch = targetPitch) { return True; }
 
-for each NoteRest nr in selection
+upward = targetPitch > sourcePitch;
+sourceName = sourceNote.Name;
+destinationName = PitchClassName(Mod12(targetPitch));
+degree = Sibelius.CalculateDegree(sourceName, destinationName, upward);
+intervalType = Sibelius.CalculateInterval(sourceName, destinationName, upward);
+pitchDifference = targetPitch - sourcePitch;
+if (pitchDifference < 0) { pitchDifference = 0 - pitchDifference; }
+octaveDegrees = RoundDown(pitchDifference / 12) * 7;
+if (pitchDifference = 12)
 {
-	if (nr.NoteCount > 0)
-	{
-		noteRestName = 'scaledNoteRest' & groupCount;
-		@noteRestName = nr;
-		starts[groupCount] = flatNoteCount;
-		groupNoteCount = 0;
-		for each note in nr
-		{
-			originalPitch = note.Pitch;
-			if (first)
-			{
-				targetPitch = originalPitch;
-				first = False;
-			}
-			else
-			{
-				pitchDistance = originalPitch - previousOriginal;
-				targetPitch = previousTarget + ScaleDistance(pitchDistance, numerator, denominator);
-			}
-			if ((targetPitch < 0) or (targetPitch > 127))
-			{
-				return -2;
-			}
-
-			originalPitches[flatNoteCount] = originalPitch;
-			targetPitches[flatNoteCount] = targetPitch;
-			tiedValues[flatNoteCount] = TrueFalseAsNumber(note.Tied);
-			stringNumbers[flatNoteCount] = note.StringNum;
-			bracketedValues[flatNoteCount] = TrueFalseAsNumber(note.Bracketed);
-			hiddenValues[flatNoteCount] = TrueFalseAsNumber(note.Hidden);
-			noteStyles[flatNoteCount] = note.NoteStyle;
-			originalDeltas[flatNoteCount] = note.OriginalDeltaSr;
-			originalDurations[flatNoteCount] = note.OriginalDuration;
-			originalVelocities[flatNoteCount] = note.OriginalVelocity;
-			useDeltas[flatNoteCount] = TrueFalseAsNumber(note.UseOriginalDeltaSrForPlayback);
-			useDurations[flatNoteCount] = TrueFalseAsNumber(note.UseOriginalDurationForPlayback);
-			useVelocities[flatNoteCount] = TrueFalseAsNumber(note.UseOriginalVelocityForPlayback);
-			flatNoteCount = flatNoteCount + 1;
-			groupNoteCount = groupNoteCount + 1;
-			previousOriginal = originalPitch;
-			previousTarget = targetPitch;
-		}
-		counts[groupCount] = groupNoteCount;
-		groupCount = groupCount + 1;
-	}
+	if (degree = 0) { octaveDegrees = 7; }
 }
-diagnosticGroups = groupCount;
-diagnosticNotes = flatNoteCount;
-
-changed = 0;
-for groupIndex = 0 to groupCount - 1
+if (upward)
 {
-	noteRestName = 'scaledNoteRest' & groupIndex;
-	nr = @noteRestName;
-	firstIndex = starts[groupIndex];
-	lastIndex = firstIndex + counts[groupIndex] - 1;
-	groupChanged = 0;
-	for index = firstIndex to lastIndex
-	{
-		if (not(targetPitches[index] = originalPitches[index]))
-		{
-			groupChanged = groupChanged + 1;
-			diagnosticTargets = diagnosticTargets + 1;
-		}
-	}
-	if (groupChanged > 0)
-	{
-		while (nr.NoteCount > 0)
-		{
-			noteToRemove = nr.Highest;
-			nr.RemoveNote(noteToRemove);
-		}
-		for index = firstIndex to lastIndex
-		{
-			if (stringNumbers[index] >= 0)
-			{
-				newNote = nr.AddNote(targetPitches[index], tiedValues[index], 0, stringNumbers[index]);
-			}
-			else
-			{
-				newNote = nr.AddNote(targetPitches[index], tiedValues[index], 0);
-			}
-			if (newNote = null) { return -1; }
-			newNote.Bracketed = bracketedValues[index];
-			newNote.Hidden = hiddenValues[index];
-			newNote.NoteStyle = noteStyles[index];
-			newNote.OriginalDeltaSr = originalDeltas[index];
-			newNote.OriginalDuration = originalDurations[index];
-			newNote.OriginalVelocity = originalVelocities[index];
-			newNote.UseOriginalDeltaSrForPlayback = useDeltas[index];
-			newNote.UseOriginalDurationForPlayback = useDurations[index];
-			newNote.UseOriginalVelocityForPlayback = useVelocities[index];
-			if (not(newNote.Pitch = targetPitches[index])) { return -1; }
-		}
-		changed = changed + groupChanged;
-		diagnosticRebuilt = diagnosticRebuilt + 1;
-	}
+	degree = degree + octaveDegrees;
 }
-return changed;
+else
+{
+	degree = degree - octaveDegrees;
+}
+nr.Transpose(degree, intervalType, False);
+return nr.Lowest.Pitch = targetPitch;
 }"
 	IntervalDialog "IntervalDialog"
 	{
@@ -311,8 +243,4 @@ return changed;
 	}
 	ratioText "2"
 	reopen "false"
-	diagnosticGroups "0"
-	diagnosticNotes "0"
-	diagnosticTargets "0"
-	diagnosticRebuilt "0"
 }
